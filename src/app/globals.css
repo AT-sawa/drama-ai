@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0f1419;
+  --bg-card: #1a1f26;
+  --border: #2a3038;
+  --text: #e1e5ea;
+  --muted: #8899a6;
+  --accent: #ff6b35;
+  --coin: #ffd700;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text);
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent to-orange-400;
+  }
+  .coin-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-yellow-600;
+  }
+}
+
+/* スクロールバー */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
