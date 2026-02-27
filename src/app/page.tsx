@@ -3,7 +3,7 @@ import { DramaCard } from "@/components/DramaCard";
 import { GENRE_LABELS } from "@/lib/types";
 import type { Drama } from "@/lib/types";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function HomePage({
   searchParams,

@@ -6,6 +6,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Episode } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function DramaDetailPage({
   params,
 }: {
