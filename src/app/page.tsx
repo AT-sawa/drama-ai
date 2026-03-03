@@ -41,7 +41,7 @@ export default async function HomePage({
 
       {/* ジャンルフィルター */}
       <section className="mb-8">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 justify-center">
           <a
             href="/"
             className={`px-4 py-2 rounded-full text-sm transition ${
