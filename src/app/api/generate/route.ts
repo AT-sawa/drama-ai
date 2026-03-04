@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { GENERATE_COST } from "@/lib/types";
 
+function generateKlingJWT(): string {
+  const accessKey = process.env.KLING_ACCESS_KEY || "";
+  const secretKey = process.env.KLING_SECRET_KEY || "";
+
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" })
+  ).toString("base64url");
+
+  const now = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(
+    JSON.stringify({ iss: accessKey, exp: now + 1800, nbf: now - 5 })
+  ).toString("base64url");
+
+  const crypto = require("crypto");
+  const signature = crypto
+    .createHmac("sha256", secretKey)
+    .update(`${header}.${payload}`)
+    .digest("base64url");
+
+  return `${header}.${payload}.${signature}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
@@ -58,58 +80,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Runway API で動画生成
-    let videoUrl: string | null = null;
+    // Kling API で動画生成タスク作成
+    let taskId: string | null = null;
     try {
-      const runwayRes = await fetch("https://api.dev.runwayml.com/v1/image_to_video", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.RUNWAY_API_KEY}`,
-        },
-        body: JSON.stringify({
-          promptText: prompt,
-          model: "gen3a_turbo",
-          duration: 10,
-          ratio: "16:9",
-        }),
-      });
+      const token = generateKlingJWT();
+      const klingRes = await fetch(
+        "https://api-singapore.klingai.com/v1/videos/text2video",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            model_name: "kling-v2-6",
+            prompt: prompt,
+            negative_prompt: "blurry, low quality, text, watermark, distorted",
+            cfg_scale: 0.5,
+            mode: "std",
+            aspect_ratio: "16:9",
+            duration: "5",
+          }),
+        }
+      );
 
-      if (runwayRes.ok) {
-        const runwayData = await runwayRes.json();
-        videoUrl = runwayData.output?.[0] || null;
+      if (klingRes.ok) {
+        const klingData = await klingRes.json();
+        if (klingData.code === 0) {
+          taskId = klingData.data?.task_id || null;
+        } else {
+          console.error("Kling API error:", klingData);
+        }
       }
     } catch (err) {
-      console.error("Runway API error:", err);
-      // API エラーでもエピソード作成は続行（動画なしで）
-    }
-
-    // Cloudflare Stream にアップロード（動画URLがある場合）
-    let cloudflareVideoId: string | null = null;
-    if (videoUrl && process.env.CLOUDFLARE_ACCOUNT_ID) {
-      try {
-        const cfRes = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/copy`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              url: videoUrl,
-              meta: { name: `${title} - EP.${episode_number}` },
-            }),
-          }
-        );
-
-        if (cfRes.ok) {
-          const cfData = await cfRes.json();
-          cloudflareVideoId = cfData.result?.uid || null;
-        }
-      } catch (err) {
-        console.error("Cloudflare Stream error:", err);
-      }
+      console.error("Kling API error:", err);
     }
 
     // コイン消費
@@ -129,7 +133,7 @@ export async function POST(request: NextRequest) {
       description: `AI動画生成: ${title}`,
     });
 
-    // エピソード作成
+    // エピソード作成（動画は後からポーリングで更新）
     const { data: episode, error: epError } = await supabase
       .from("episodes")
       .insert({
@@ -137,11 +141,11 @@ export async function POST(request: NextRequest) {
         episode_number,
         title,
         description: prompt,
-        video_url: videoUrl,
-        cloudflare_video_id: cloudflareVideoId,
-        duration: 10,
+        video_url: null,
+        cloudflare_video_id: taskId,
+        duration: 5,
         coin_price: 50,
-        is_published: true,
+        is_published: false,
       })
       .select()
       .single();
@@ -162,6 +166,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       episode,
+      task_id: taskId,
       balance: newBalance,
     });
   } catch (error) {
