@@ -45,6 +45,13 @@ export async function GET(request: NextRequest) {
       const videoUrl =
         piData.data?.output?.video ||
         piData.data?.output?.works?.[0]?.video?.resource_without_watermark ||
+        piData.data?.output?.works?.[0]?.video?.resource ||
+        null;
+
+      // 動画の実際のdurationを取得（PiAPIレスポンスに含まれる場合）
+      const videoDuration =
+        piData.data?.output?.works?.[0]?.video?.duration ||
+        piData.data?.input?.duration ||
         null;
 
       if (videoUrl) {
@@ -72,14 +79,21 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // エピソードを更新（動画URL設定 + 公開）
+        // エピソードを更新（動画URL設定 + 公開 + duration更新）
+        const updateData: Record<string, unknown> = {
+          video_url: videoUrl,
+          is_published: true,
+        };
+        if (cloudflareVideoId) {
+          updateData.cloudflare_video_id = cloudflareVideoId;
+        }
+        if (videoDuration) {
+          updateData.duration = Math.round(Number(videoDuration));
+        }
+
         await supabase
           .from("episodes")
-          .update({
-            video_url: videoUrl,
-            cloudflare_video_id: cloudflareVideoId || undefined,
-            is_published: true,
-          })
+          .update(updateData)
           .eq("id", episodeId);
       }
 

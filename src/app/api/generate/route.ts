@@ -2,6 +2,38 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { GENERATE_COST } from "@/lib/types";
 
+/**
+ * プロンプトを強化して、Kling AIがより正確に動画を生成できるようにする
+ * - カメラワーク、照明、スタイル指示を補足
+ * - 日本語でも英語でも対応
+ */
+function enhancePrompt(userPrompt: string): string {
+  // ユーザーのプロンプトにカメラワークや映像スタイルの指示がない場合は補足
+  const hasCamera = /カメラ|camera|tracking|pan|zoom|dolly|close.?up|wide.?shot/i.test(userPrompt);
+  const hasStyle = /cinematic|映画|リアル|realistic|4k|高品質|high.?quality|photorealistic/i.test(userPrompt);
+  const hasLighting = /照明|光|lighting|sunset|sunrise|夕暮れ|朝日|ネオン|neon/i.test(userPrompt);
+
+  let enhanced = userPrompt;
+
+  // 映像品質の指示を追加
+  const qualitySuffix: string[] = [];
+  if (!hasStyle) {
+    qualitySuffix.push("cinematic, high quality, photorealistic");
+  }
+  if (!hasCamera) {
+    qualitySuffix.push("smooth camera movement");
+  }
+  if (!hasLighting) {
+    qualitySuffix.push("natural lighting");
+  }
+
+  if (qualitySuffix.length > 0) {
+    enhanced = `${enhanced}. ${qualitySuffix.join(", ")}`;
+  }
+
+  return enhanced;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
@@ -34,7 +66,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { drama_id, episode_number, title, prompt } = await request.json();
+    const {
+      drama_id,
+      episode_number,
+      title,
+      prompt,
+      duration = 10,
+      mode = "pro",
+    } = await request.json();
 
     if (!drama_id || !episode_number || !title || !prompt) {
       return NextResponse.json(
@@ -42,6 +81,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // duration と mode のバリデーション
+    const validDuration = duration === 5 ? 5 : 10;
+    const validMode = mode === "std" ? "std" : "pro";
 
     // ドラマ所有者確認
     const { data: drama } = await supabase
@@ -58,6 +101,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // プロンプトを強化
+    const enhancedPrompt = enhancePrompt(prompt);
+
     // PiAPI経由でKling動画生成タスク作成
     let taskId: string | null = null;
     try {
@@ -71,13 +117,14 @@ export async function POST(request: NextRequest) {
           model: "kling",
           task_type: "video_generation",
           input: {
-            prompt: prompt,
-            negative_prompt: "blurry, low quality, text, watermark, distorted",
+            prompt: enhancedPrompt,
+            negative_prompt:
+              "blurry, low quality, text, watermark, distorted, deformed, ugly, bad anatomy, bad proportions, extra limbs, disfigured, out of focus, noise, grainy, oversaturated, static image",
             cfg_scale: 0.5,
-            duration: 5,
+            duration: validDuration,
             aspect_ratio: "16:9",
-            version: "2.6",
-            mode: "std",
+            version: "2.0",
+            mode: validMode,
           },
         }),
       });
@@ -90,7 +137,8 @@ export async function POST(request: NextRequest) {
           console.error("PiAPI error:", piData);
         }
       } else {
-        console.error("PiAPI HTTP error:", piRes.status);
+        const errorText = await piRes.text();
+        console.error("PiAPI HTTP error:", piRes.status, errorText);
       }
     } catch (err) {
       console.error("PiAPI request error:", err);
@@ -110,7 +158,7 @@ export async function POST(request: NextRequest) {
       amount: -GENERATE_COST,
       balance_after: newBalance,
       reference_id: drama_id,
-      description: `AI動画生成: ${title}`,
+      description: `AI動画生成 (${validMode === "pro" ? "Pro" : "Std"}, ${validDuration}秒): ${title}`,
     });
 
     // エピソード作成（動画は後からポーリングで更新）
@@ -123,7 +171,7 @@ export async function POST(request: NextRequest) {
         description: prompt,
         video_url: null,
         cloudflare_video_id: taskId,
-        duration: 5,
+        duration: validDuration,
         coin_price: 50,
         is_published: false,
       })

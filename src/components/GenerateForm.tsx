@@ -12,6 +12,8 @@ interface Props {
 export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
   const [prompt, setPrompt] = useState("");
   const [title, setTitle] = useState(`エピソード ${episodeNumber}`);
+  const [duration, setDuration] = useState<5 | 10>(10);
+  const [mode, setMode] = useState<"std" | "pro">("pro");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
 
   function startPolling(taskId: string, episodeId: string) {
     let attempts = 0;
-    const maxAttempts = 60; // 最大10分
+    const maxAttempts = 90; // 最大15分（10秒間隔で長めの動画に対応）
 
     pollingRef.current = setInterval(async () => {
       attempts++;
@@ -47,7 +49,7 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
 
         if (data.status === "succeed") {
           stopPolling();
-          setStatus("動画の生成が完了しました！");
+          setStatus("✅ 動画の生成が完了しました！ページを更新して確認してください。");
           setLoading(false);
           setPrompt("");
         } else if (data.status === "failed") {
@@ -56,7 +58,11 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
           setStatus(null);
           setLoading(false);
         } else {
-          setStatus(`Kling AIが動画を生成中... (${attempts * 10}秒経過)`);
+          const elapsed = attempts * 10;
+          const min = Math.floor(elapsed / 60);
+          const sec = elapsed % 60;
+          const timeStr = min > 0 ? `${min}分${sec}秒` : `${sec}秒`;
+          setStatus(`Kling AI (${mode === "pro" ? "Pro" : "Standard"}) が動画を生成中... (${timeStr}経過)`);
         }
       } catch {
         // ネットワークエラーは無視して次回リトライ
@@ -80,6 +86,8 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
           episode_number: episodeNumber,
           title,
           prompt: prompt.trim(),
+          duration,
+          mode,
         }),
       });
 
@@ -90,7 +98,7 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
       }
 
       if (data.task_id && data.episode?.id) {
-        setStatus("Kling AIが動画を生成中... (0秒経過)");
+        setStatus(`Kling AI (${mode === "pro" ? "Pro" : "Standard"}) が動画を生成中... (0秒経過)`);
         startPolling(data.task_id, data.episode.id);
       } else {
         setStatus("エピソードを作成しました（動画は後から確認してください）");
@@ -136,16 +144,88 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
           />
         </div>
 
+        {/* 動画設定 */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-dark-muted mb-1">
+              動画の長さ
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDuration(5)}
+                disabled={loading}
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition ${
+                  duration === 5
+                    ? "bg-accent/20 border-accent text-accent"
+                    : "bg-dark-bg border-dark-border text-dark-muted hover:border-dark-text"
+                } disabled:opacity-50`}
+              >
+                5秒
+              </button>
+              <button
+                type="button"
+                onClick={() => setDuration(10)}
+                disabled={loading}
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition ${
+                  duration === 10
+                    ? "bg-accent/20 border-accent text-accent"
+                    : "bg-dark-bg border-dark-border text-dark-muted hover:border-dark-text"
+                } disabled:opacity-50`}
+              >
+                10秒
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-dark-muted mb-1">
+              品質モード
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("std")}
+                disabled={loading}
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition ${
+                  mode === "std"
+                    ? "bg-accent/20 border-accent text-accent"
+                    : "bg-dark-bg border-dark-border text-dark-muted hover:border-dark-text"
+                } disabled:opacity-50`}
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("pro")}
+                disabled={loading}
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition ${
+                  mode === "pro"
+                    ? "bg-accent/20 border-accent text-accent"
+                    : "bg-dark-bg border-dark-border text-dark-muted hover:border-dark-text"
+                } disabled:opacity-50`}
+              >
+                Pro（高精度）
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-xs text-dark-muted bg-dark-bg/50 rounded-lg px-3 py-2">
+          💡 <strong>Pro</strong>モードはプロンプトの内容をより正確に反映します。
+          <strong>10秒</strong>でより長いシーンを生成できます。
+        </div>
+
         <div>
           <label className="block text-sm text-dark-muted mb-1">
-            プロンプト（動画の内容を記述）
+            プロンプト（動画の内容を詳しく記述）
           </label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            rows={4}
+            rows={5}
             className="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-dark-text placeholder-dark-muted/50 focus:outline-none focus:border-accent transition resize-none"
-            placeholder="例: 夕暮れの東京の街を歩く二人のシルエット。ネオンの光が雨に濡れた路面に反射している..."
+            placeholder={`動画の内容を具体的に記述してください。\n\n例: 夕暮れの東京の街を歩く若い男女。ネオンの光が雨に濡れた路面に反射している。二人は手をつなぎながら、にぎやかな商店街を歩いている。カメラはゆっくりと二人を追うように移動する。\n\n※ カメラワーク、照明、雰囲気なども記述すると精度が上がります。`}
             disabled={loading}
             maxLength={2500}
           />
