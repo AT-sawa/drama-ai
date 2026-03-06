@@ -1,28 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-function generateKlingJWT(): string {
-  const accessKey = process.env.KLING_ACCESS_KEY || "";
-  const secretKey = process.env.KLING_SECRET_KEY || "";
-
-  const header = Buffer.from(
-    JSON.stringify({ alg: "HS256", typ: "JWT" })
-  ).toString("base64url");
-
-  const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(
-    JSON.stringify({ iss: accessKey, exp: now + 1800, nbf: now - 5 })
-  ).toString("base64url");
-
-  const crypto = require("crypto");
-  const signature = crypto
-    .createHmac("sha256", secretKey)
-    .update(`${header}.${payload}`)
-    .digest("base64url");
-
-  return `${header}.${payload}.${signature}`;
-}
-
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
@@ -44,28 +22,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Kling API でタスク状態を確認
-    const token = generateKlingJWT();
-    const klingRes = await fetch(
-      `https://api-singapore.klingai.com/v1/videos/text2video/${taskId}`,
+    // PiAPI でタスク状態を確認
+    const piRes = await fetch(
+      `https://api.piapi.ai/api/v1/task/${taskId}`,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { "x-api-key": process.env.PIAPI_API_KEY || "" },
       }
     );
 
-    if (!klingRes.ok) {
+    if (!piRes.ok) {
       return NextResponse.json(
-        { error: "Kling APIへの問い合わせに失敗しました" },
+        { error: "PiAPIへの問い合わせに失敗しました" },
         { status: 502 }
       );
     }
 
-    const klingData = await klingRes.json();
-    const taskStatus = klingData.data?.task_status;
+    const piData = await piRes.json();
+    const taskStatus = piData.data?.status?.toLowerCase();
 
-    if (taskStatus === "succeed") {
+    if (taskStatus === "completed") {
+      // 動画URLを取得（PiAPIのレスポンス形式に対応）
       const videoUrl =
-        klingData.data?.task_result?.videos?.[0]?.url || null;
+        piData.data?.output?.video ||
+        piData.data?.output?.works?.[0]?.video?.resource_without_watermark ||
+        null;
 
       if (videoUrl) {
         // Cloudflare Stream にアップロード（設定がある場合）
@@ -105,18 +85,18 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         status: "succeed",
-        video_url: klingData.data?.task_result?.videos?.[0]?.url || null,
+        video_url: videoUrl,
       });
     }
 
     if (taskStatus === "failed") {
       return NextResponse.json({
         status: "failed",
-        error: klingData.data?.task_status_msg || "生成に失敗しました",
+        error: piData.data?.error?.message || "生成に失敗しました",
       });
     }
 
-    // まだ処理中
+    // まだ処理中 (pending / processing)
     return NextResponse.json({
       status: taskStatus || "processing",
     });

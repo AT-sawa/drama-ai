@@ -2,28 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { GENERATE_COST } from "@/lib/types";
 
-function generateKlingJWT(): string {
-  const accessKey = process.env.KLING_ACCESS_KEY || "";
-  const secretKey = process.env.KLING_SECRET_KEY || "";
-
-  const header = Buffer.from(
-    JSON.stringify({ alg: "HS256", typ: "JWT" })
-  ).toString("base64url");
-
-  const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(
-    JSON.stringify({ iss: accessKey, exp: now + 1800, nbf: now - 5 })
-  ).toString("base64url");
-
-  const crypto = require("crypto");
-  const signature = crypto
-    .createHmac("sha256", secretKey)
-    .update(`${header}.${payload}`)
-    .digest("base64url");
-
-  return `${header}.${payload}.${signature}`;
-}
-
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient();
@@ -80,40 +58,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Kling API で動画生成タスク作成
+    // PiAPI経由でKling動画生成タスク作成
     let taskId: string | null = null;
     try {
-      const token = generateKlingJWT();
-      const klingRes = await fetch(
-        "https://api-singapore.klingai.com/v1/videos/text2video",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            model_name: "kling-v2-6",
+      const piRes = await fetch("https://api.piapi.ai/api/v1/task", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.PIAPI_API_KEY || "",
+        },
+        body: JSON.stringify({
+          model: "kling",
+          task_type: "video_generation",
+          input: {
             prompt: prompt,
             negative_prompt: "blurry, low quality, text, watermark, distorted",
-            cfg_scale: 0.5,
-            mode: "std",
+            cfg_scale: "0.5",
+            duration: 5,
             aspect_ratio: "16:9",
-            duration: "5",
-          }),
-        }
-      );
+            version: "2.6",
+            mode: "std",
+          },
+        }),
+      });
 
-      if (klingRes.ok) {
-        const klingData = await klingRes.json();
-        if (klingData.code === 0) {
-          taskId = klingData.data?.task_id || null;
+      if (piRes.ok) {
+        const piData = await piRes.json();
+        if (piData.code === 200 && piData.data?.task_id) {
+          taskId = piData.data.task_id;
         } else {
-          console.error("Kling API error:", klingData);
+          console.error("PiAPI error:", piData);
         }
+      } else {
+        console.error("PiAPI HTTP error:", piRes.status);
       }
     } catch (err) {
-      console.error("Kling API error:", err);
+      console.error("PiAPI request error:", err);
     }
 
     // コイン消費
