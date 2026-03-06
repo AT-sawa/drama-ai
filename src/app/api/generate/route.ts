@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
           input: {
             prompt: prompt,
             negative_prompt: "blurry, low quality, text, watermark, distorted",
-            cfg_scale: "0.5",
+            cfg_scale: 0.5,
             duration: 5,
             aspect_ratio: "16:9",
             version: "2.6",
