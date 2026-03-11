@@ -79,16 +79,23 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // エピソードを更新（動画URL設定 + 公開 + duration更新）
+        // エピソードを更新（動画URL設定 + 公開）
+        // cloudflare_video_idは必ずnullにリセット（PiAPIタスクIDが入っているため）
+        // Cloudflare Streamにアップロードした場合のみ実際のIDを設定
         const updateData: Record<string, unknown> = {
           video_url: videoUrl,
           is_published: true,
+          cloudflare_video_id: cloudflareVideoId || null,
         };
-        if (cloudflareVideoId) {
-          updateData.cloudflare_video_id = cloudflareVideoId;
-        }
+
+        // durationの処理: PiAPIからの値が異常に大きい場合はミリ秒とみなす
         if (videoDuration) {
-          updateData.duration = Math.round(Number(videoDuration));
+          let dur = Number(videoDuration);
+          if (dur > 300) {
+            // 300秒(5分)を超える場合はミリ秒の可能性が高い
+            dur = dur / 1000;
+          }
+          updateData.duration = Math.round(dur);
         }
 
         await supabase
