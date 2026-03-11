@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
 
     // PiAPI経由でKling動画生成タスク作成
     let taskId: string | null = null;
+    let piApiError: string | null = null;
     try {
       const piRes = await fetch("https://api.piapi.ai/api/v1/task", {
         method: "POST",
@@ -129,22 +130,34 @@ export async function POST(request: NextRequest) {
         }),
       });
 
-      if (piRes.ok) {
-        const piData = await piRes.json();
-        if (piData.code === 200 && piData.data?.task_id) {
-          taskId = piData.data.task_id;
-        } else {
-          console.error("PiAPI error:", piData);
-        }
+      const piData = await piRes.json();
+
+      if (piData.code === 200 && piData.data?.task_id) {
+        taskId = piData.data.task_id;
       } else {
-        const errorText = await piRes.text();
-        console.error("PiAPI HTTP error:", piRes.status, errorText);
+        // PiAPIエラー（クレジット不足など）
+        const rawMsg = piData.data?.error?.raw_message || piData.message || "";
+        if (rawMsg.includes("not enough")) {
+          piApiError = "PiAPIのクレジットが不足しています。PiAPIダッシュボードでクレジットを追加してください。";
+        } else {
+          piApiError = `動画生成サービスでエラーが発生しました: ${piData.message || "不明なエラー"}`;
+        }
+        console.error("PiAPI error:", piData);
       }
     } catch (err) {
       console.error("PiAPI request error:", err);
+      piApiError = "動画生成サービスに接続できませんでした。しばらくしてから再試行してください。";
     }
 
-    // コイン消費
+    // PiAPIが失敗した場合はコインを消費せずにエラーを返す
+    if (!taskId) {
+      return NextResponse.json(
+        { error: piApiError || "動画生成タスクの作成に失敗しました" },
+        { status: 502 }
+      );
+    }
+
+    // PiAPI成功後にコイン消費
     const newBalance = profile.coin_balance - GENERATE_COST;
     await supabase
       .from("profiles")
