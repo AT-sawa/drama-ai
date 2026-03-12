@@ -54,9 +54,9 @@ export default function RegisterPage() {
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4">
         <div className="w-full max-w-md text-center">
           <div className="bg-dark-card border border-dark-border rounded-xl p-8">
-            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
-                className="w-8 h-8 text-green-400"
+                className="w-8 h-8 text-accent"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -65,20 +65,31 @@ export default function RegisterPage() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M5 13l4 4L19 7"
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold mb-2">登録完了</h2>
-            <p className="text-dark-muted">
-              確認メールを送信しました。メール内のリンクをクリックしてアカウントを有効化してください。
+            <h2 className="text-xl font-bold mb-2">認証メールを送信しました</h2>
+            <p className="text-dark-muted mb-4">
+              <span className="text-dark-text font-medium">{email}</span> 宛に認証メールを送信しました。
             </p>
-            <Link
-              href="/login"
-              className="inline-block mt-6 text-accent hover:underline"
-            >
-              ログインページへ
-            </Link>
+            <div className="bg-dark-bg border border-dark-border rounded-lg p-4 text-left space-y-2 text-sm">
+              <div className="flex items-start gap-2">
+                <span className="text-accent font-bold mt-0.5">1.</span>
+                <p className="text-dark-muted">メールボックスを確認してください</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-accent font-bold mt-0.5">2.</span>
+                <p className="text-dark-muted">メール内の<span className="text-dark-text">認証リンク</span>をクリックしてください</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-accent font-bold mt-0.5">3.</span>
+                <p className="text-dark-muted">自動的にホーム画面に移動します</p>
+              </div>
+            </div>
+            <p className="text-xs text-dark-muted/60 mt-4">
+              メールが届かない場合は、迷惑メールフォルダもご確認ください
+            </p>
           </div>
         </div>
       </div>

@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DramaCard } from "@/components/DramaCard";
+import { WelcomeToast } from "@/components/WelcomeToast";
 import { GENRE_LABELS } from "@/lib/types";
 import type { Drama } from "@/lib/types";
 
@@ -39,6 +41,10 @@ export default async function HomePage({
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <Suspense fallback={null}>
+        <WelcomeToast />
+      </Suspense>
+
       {/* ヒーローセクション */}
       <section className="mb-12 text-center">
         <h1 className="text-4xl md:text-6xl font-bold mb-4">
