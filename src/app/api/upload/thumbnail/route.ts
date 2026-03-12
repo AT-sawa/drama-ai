@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
 // Vercel のbodyサイズ制限を拡張
 export const runtime = "nodejs";
@@ -7,6 +8,18 @@ export const maxDuration = 30;
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+/**
+ * ストレージ操作用の service_role クライアント
+ * @supabase/ssr の createServerClient はストレージ操作に問題があるため
+ * @supabase/supabase-js の createClient を直接使用
+ */
+function createStorageClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,8 +87,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // service_roleでストレージ操作（RLSバイパス）
-    const serviceClient = createServiceRoleClient();
+    // @supabase/supabase-js で直接ストレージ操作（SSRクライアントは非対応）
+    const storageClient = createStorageClient();
 
     // 古いサムネイルがある場合は削除
     if (
@@ -84,7 +97,7 @@ export async function POST(request: NextRequest) {
     ) {
       const oldPath = drama.thumbnail_url.split("/thumbnails/")[1];
       if (oldPath) {
-        await serviceClient.storage
+        await storageClient.storage
           .from("thumbnails")
           .remove([decodeURIComponent(oldPath)]);
       }
@@ -95,7 +108,7 @@ export async function POST(request: NextRequest) {
     const path = `${user.id}/${dramaId}_${Date.now()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    const { error: uploadError } = await serviceClient.storage
+    const { error: uploadError } = await storageClient.storage
       .from("thumbnails")
       .upload(path, buffer, {
         contentType: file.type,
@@ -105,21 +118,29 @@ export async function POST(request: NextRequest) {
     if (uploadError) {
       console.error("Storage upload error:", uploadError);
       return NextResponse.json(
-        { error: "アップロードに失敗しました" },
+        { error: `アップロードに失敗しました: ${uploadError.message}` },
         { status: 500 }
       );
     }
 
     // 公開URLを取得
-    const { data: urlData } = serviceClient.storage
+    const { data: urlData } = storageClient.storage
       .from("thumbnails")
       .getPublicUrl(path);
 
     // drama の thumbnail_url を更新
-    await serviceClient
+    const { error: updateError } = await storageClient
       .from("dramas")
       .update({ thumbnail_url: urlData.publicUrl })
       .eq("id", dramaId);
+
+    if (updateError) {
+      console.error("Drama update error:", updateError);
+      return NextResponse.json(
+        { error: "サムネイルURLの保存に失敗しました" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ thumbnail_url: urlData.publicUrl });
   } catch (error) {
