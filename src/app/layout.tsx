@@ -24,7 +24,7 @@ export default function RootLayout({
         <footer className="border-t border-dark-border py-8 text-center text-sm text-dark-muted">
           <div className="max-w-7xl mx-auto px-4">
             <p className="text-gradient font-bold text-lg mb-2">DramaAI</p>
-            <p>&copy; 2024 DramaAI. All rights reserved.</p>
+            <p>&copy; 2026 DramaAI. All rights reserved.</p>
           </div>
         </footer>
       </body>
