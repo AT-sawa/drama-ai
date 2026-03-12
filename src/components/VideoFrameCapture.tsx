@@ -31,6 +31,15 @@ export function VideoFrameCapture({
 
   const selectedEp = videoEpisodes.find((ep) => ep.id === selectedEpId);
 
+  // 外部動画はプロキシ経由で読み込み（CORS対応）
+  function getProxiedUrl(url: string): string {
+    // 自サイトの動画はそのまま
+    if (url.startsWith("/") || url.includes(window.location.hostname)) {
+      return url;
+    }
+    return `/api/proxy-video?url=${encodeURIComponent(url)}`;
+  }
+
   const captureFrame = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
@@ -120,12 +129,12 @@ export function VideoFrameCapture({
         <div className="rounded-lg overflow-hidden bg-black">
           <video
             ref={videoRef}
-            src={selectedEp.video_url}
+            src={getProxiedUrl(selectedEp.video_url)}
             crossOrigin="anonymous"
             className="w-full"
             controls
             onLoadedData={() => setVideoLoaded(true)}
-            onError={() => setError("動画の読み込みに失敗しました")}
+            onError={() => setError("動画の読み込みに失敗しました。しばらくしてから再試行してください。")}
           />
         </div>
       )}
