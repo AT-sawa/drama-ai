@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 /**
  * 外部動画をプロキシして CORS ヘッダーを付与
  * VideoFrameCapture で Canvas キャプチャを可能にする

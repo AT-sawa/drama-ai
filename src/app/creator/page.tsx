@@ -107,6 +107,8 @@ export default function CreatorDashboard() {
   }, []);
 
   // サムネイルをAPIにアップロード
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   async function uploadThumbnail(
     file: File | Blob,
     dramaId: string
@@ -115,16 +117,25 @@ export default function CreatorDashboard() {
     formData.append("file", file, file instanceof File ? file.name : "capture.jpg");
     formData.append("drama_id", dramaId);
 
-    const res = await fetch("/api/upload/thumbnail", {
-      method: "POST",
-      body: formData,
-    });
+    try {
+      const res = await fetch("/api/upload/thumbnail", {
+        method: "POST",
+        body: formData,
+      });
 
-    if (res.ok) {
       const data = await res.json();
-      return data.thumbnail_url;
+
+      if (res.ok) {
+        setUploadError(null);
+        return data.thumbnail_url;
+      } else {
+        setUploadError(data.error || "アップロードに失敗しました");
+        return null;
+      }
+    } catch (err) {
+      setUploadError("ネットワークエラーが発生しました");
+      return null;
     }
-    return null;
   }
 
   // ドラマ作成
@@ -186,6 +197,7 @@ export default function CreatorDashboard() {
   async function handleSaveThumbnail() {
     if (!editingDrama || !editThumbnailFile) return;
     setUploading(true);
+    setUploadError(null);
 
     const thumbnailUrl = await uploadThumbnail(
       editThumbnailFile,
@@ -201,6 +213,8 @@ export default function CreatorDashboard() {
         )
       );
       setEditingDrama(null);
+      setEditThumbnailFile(null);
+      setEditThumbnailPreview(null);
     }
     setUploading(false);
   }
@@ -404,6 +418,13 @@ export default function CreatorDashboard() {
                   </button>
                 )}
 
+                {/* エラー表示 */}
+                {uploadError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+                    {uploadError}
+                  </div>
+                )}
+
                 {/* ボタン */}
                 <div className="flex gap-3 pt-2">
                   <button
@@ -411,6 +432,7 @@ export default function CreatorDashboard() {
                       setEditingDrama(null);
                       setEditThumbnailFile(null);
                       setEditThumbnailPreview(null);
+                      setUploadError(null);
                     }}
                     className="flex-1 bg-dark-border text-dark-text py-2.5 rounded-lg hover:bg-dark-border/70 transition"
                   >
