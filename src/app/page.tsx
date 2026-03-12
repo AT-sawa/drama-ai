@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: { genre?: string };
+  searchParams: { genre?: string; q?: string };
 }) {
   const supabase = createServerSupabaseClient();
 
@@ -22,7 +22,20 @@ export default async function HomePage({
     query = query.eq("genre", searchParams.genre);
   }
 
+  if (searchParams.q) {
+    const keyword = searchParams.q.trim();
+    query = query.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%`);
+  }
+
   const { data: dramas } = await query;
+
+  // ジャンルフィルターのURL構築
+  function buildUrl(params: Record<string, string | undefined>) {
+    const p = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v) p.set(k, v); });
+    const s = p.toString();
+    return s ? `/?${s}` : "/";
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -39,11 +52,48 @@ export default async function HomePage({
         </p>
       </section>
 
+      {/* 検索バー */}
+      <section className="mb-6">
+        <form action="/" method="GET" className="max-w-xl mx-auto">
+          {searchParams.genre && (
+            <input type="hidden" name="genre" value={searchParams.genre} />
+          )}
+          <div className="relative">
+            <svg
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-muted"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              name="q"
+              defaultValue={searchParams.q || ""}
+              placeholder="ドラマを検索..."
+              className="w-full bg-dark-card border border-dark-border rounded-full pl-12 pr-4 py-3 text-dark-text placeholder:text-dark-muted/50 focus:outline-none focus:border-accent transition"
+            />
+            {searchParams.q && (
+              <a
+                href={buildUrl({ genre: searchParams.genre })}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-muted hover:text-dark-text transition"
+                title="検索をクリア"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </a>
+            )}
+          </div>
+        </form>
+      </section>
+
       {/* ジャンルフィルター */}
       <section className="mb-8">
         <div className="flex flex-wrap gap-2 justify-center">
           <a
-            href="/"
+            href={buildUrl({ q: searchParams.q })}
             className={`px-4 py-2 rounded-full text-sm transition ${
               !searchParams.genre
                 ? "bg-accent text-white"
@@ -55,7 +105,7 @@ export default async function HomePage({
           {Object.entries(GENRE_LABELS).map(([key, label]) => (
             <a
               key={key}
-              href={`/?genre=${key}`}
+              href={buildUrl({ genre: key, q: searchParams.q })}
               className={`px-4 py-2 rounded-full text-sm transition ${
                 searchParams.genre === key
                   ? "bg-accent text-white"
@@ -67,6 +117,13 @@ export default async function HomePage({
           ))}
         </div>
       </section>
+
+      {/* 検索結果表示 */}
+      {searchParams.q && (
+        <div className="mb-4 text-sm text-dark-muted text-center">
+          「{searchParams.q}」の検索結果: {dramas?.length || 0}件
+        </div>
+      )}
 
       {/* ドラマ一覧 */}
       <section>
