@@ -3,6 +3,15 @@ import Image from "next/image";
 import type { Drama } from "@/lib/types";
 import { GENRE_LABELS } from "@/lib/types";
 
+function truncateDescription(text: string, maxLength = 80): string {
+  // 「冒頭：」「冒頭:」を削除
+  let cleaned = text.replace(/^冒頭[：:][\s]*/,"");
+  if (cleaned.length > maxLength) {
+    return cleaned.slice(0, maxLength) + "...";
+  }
+  return cleaned;
+}
+
 export function DramaCard({ drama }: { drama: Drama }) {
   return (
     <Link
@@ -45,7 +54,7 @@ export function DramaCard({ drama }: { drama: Drama }) {
           {drama.title}
         </h3>
         <p className="mt-1 text-sm text-dark-muted line-clamp-2">
-          {drama.description}
+          {truncateDescription(drama.description || "")}
         </p>
         <div className="mt-3 flex items-center justify-between text-xs text-dark-muted">
           <span>{drama.total_episodes} エピソード</span>
