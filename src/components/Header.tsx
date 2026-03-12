@@ -47,14 +47,6 @@ export function Header() {
           >
             ホーム
           </Link>
-          {profile?.is_creator && (
-            <Link
-              href="/creator"
-              className="text-dark-muted hover:text-dark-text transition"
-            >
-              クリエイター
-            </Link>
-          )}
         </nav>
 
         <div className="flex items-center gap-4">
