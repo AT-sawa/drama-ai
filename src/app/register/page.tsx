@@ -69,9 +69,9 @@ export default function RegisterPage() {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold mb-2">認証メールを<br />送信しました</h2>
+            <h2 className="text-xl font-bold mb-2">認証メールを送信しました</h2>
             <p className="text-dark-muted mb-4">
-              <span className="text-dark-text font-medium">{email}</span> 宛に認証メールを送信しました。
+              <span className="text-dark-text font-medium">{email}</span> 宛に<br />認証メールを送信しました。
             </p>
             <div className="bg-dark-bg border border-dark-border rounded-lg p-4 text-left space-y-2 text-sm">
               <div className="flex items-start gap-2">
