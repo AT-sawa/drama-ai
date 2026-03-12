@@ -49,10 +49,11 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const dramaId = formData.get("drama_id") as string | null;
+    const episodeId = formData.get("episode_id") as string | null;
 
-    if (!file || !dramaId) {
+    if (!file || (!dramaId && !episodeId)) {
       return NextResponse.json(
-        { error: "ファイルとdrama_idが必要です" },
+        { error: "ファイルとdrama_idまたはepisode_idが必要です" },
         { status: 400 }
       );
     }
@@ -72,30 +73,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ドラマ所有者確認
-    const { data: drama } = await supabase
-      .from("dramas")
-      .select("id, thumbnail_url")
-      .eq("id", dramaId)
-      .eq("creator_id", user.id)
-      .single();
-
-    if (!drama) {
-      return NextResponse.json(
-        { error: "ドラマが見つかりません" },
-        { status: 404 }
-      );
-    }
-
     // @supabase/supabase-js で直接ストレージ操作（SSRクライアントは非対応）
     const storageClient = createStorageClient();
+    let oldThumbnailUrl: string | null = null;
+    let targetId: string;
+
+    if (episodeId) {
+      // エピソード所有者確認（drama経由）
+      const { data: episode } = await supabase
+        .from("episodes")
+        .select("id, thumbnail_url, drama_id, dramas:drama_id(creator_id)")
+        .eq("id", episodeId)
+        .single();
+
+      const creatorId = (episode as any)?.dramas?.creator_id;
+      if (!episode || creatorId !== user.id) {
+        return NextResponse.json(
+          { error: "エピソードが見つかりません" },
+          { status: 404 }
+        );
+      }
+      oldThumbnailUrl = episode.thumbnail_url;
+      targetId = episodeId;
+    } else {
+      // ドラマ所有者確認
+      const { data: drama } = await supabase
+        .from("dramas")
+        .select("id, thumbnail_url")
+        .eq("id", dramaId!)
+        .eq("creator_id", user.id)
+        .single();
+
+      if (!drama) {
+        return NextResponse.json(
+          { error: "ドラマが見つかりません" },
+          { status: 404 }
+        );
+      }
+      oldThumbnailUrl = drama.thumbnail_url;
+      targetId = dramaId!;
+    }
 
     // 古いサムネイルがある場合は削除
-    if (
-      drama.thumbnail_url &&
-      drama.thumbnail_url.includes("supabase.co/storage")
-    ) {
-      const oldPath = drama.thumbnail_url.split("/thumbnails/")[1];
+    if (oldThumbnailUrl && oldThumbnailUrl.includes("supabase.co/storage")) {
+      const oldPath = oldThumbnailUrl.split("/thumbnails/")[1];
       if (oldPath) {
         await storageClient.storage
           .from("thumbnails")
@@ -105,7 +126,8 @@ export async function POST(request: NextRequest) {
 
     // アップロード
     const ext = file.name.split(".").pop() || "jpg";
-    const path = `${user.id}/${dramaId}_${Date.now()}.${ext}`;
+    const prefix = episodeId ? "ep" : "drama";
+    const path = `${user.id}/${prefix}_${targetId}_${Date.now()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadError } = await storageClient.storage
@@ -128,14 +150,15 @@ export async function POST(request: NextRequest) {
       .from("thumbnails")
       .getPublicUrl(path);
 
-    // drama の thumbnail_url を更新
+    // thumbnail_url を更新
+    const table = episodeId ? "episodes" : "dramas";
     const { error: updateError } = await storageClient
-      .from("dramas")
+      .from(table)
       .update({ thumbnail_url: urlData.publicUrl })
-      .eq("id", dramaId);
+      .eq("id", targetId);
 
     if (updateError) {
-      console.error("Drama update error:", updateError);
+      console.error("Update error:", updateError);
       return NextResponse.json(
         { error: "サムネイルURLの保存に失敗しました" },
         { status: 500 }
