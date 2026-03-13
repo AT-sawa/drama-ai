@@ -46,6 +46,13 @@ export default function RootLayout({
               >
                 特定商取引法に基づく表記
               </Link>
+              <span className="text-dark-border">|</span>
+              <Link
+                href="/contact"
+                className="hover:text-dark-text transition"
+              >
+                お問い合わせ
+              </Link>
             </div>
             <p>&copy; 2026 DramaAI. All rights reserved.</p>
           </div>
