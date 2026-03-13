@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
   await supabase.auth.getUser();
 
   // 保護されたルート
-  const protectedPaths = ["/creator", "/coins"];
+  const protectedPaths = ["/creator", "/coins", "/profile"];
   const isProtected = protectedPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );

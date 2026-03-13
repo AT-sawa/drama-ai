@@ -71,6 +71,13 @@ export function Header() {
                       </p>
                     </div>
                     <Link
+                      href="/profile"
+                      className="block px-4 py-2 text-sm hover:bg-dark-border/50 transition"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      プロフィール編集
+                    </Link>
+                    <Link
                       href="/coins"
                       className="block px-4 py-2 text-sm hover:bg-dark-border/50 transition"
                       onClick={() => setMenuOpen(false)}
