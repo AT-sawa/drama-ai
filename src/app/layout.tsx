@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 import { Header } from "@/components/Header";
 
@@ -23,7 +24,22 @@ export default function RootLayout({
         <main className="min-h-[calc(100vh-4rem)]">{children}</main>
         <footer className="border-t border-dark-border py-8 text-center text-sm text-dark-muted">
           <div className="max-w-7xl mx-auto px-4">
-            <p className="text-gradient font-bold text-lg mb-2">DramaAI</p>
+            <p className="text-gradient font-bold text-lg mb-3">DramaAI</p>
+            <div className="flex items-center justify-center gap-4 mb-3">
+              <Link
+                href="/terms"
+                className="hover:text-dark-text transition"
+              >
+                利用規約
+              </Link>
+              <span className="text-dark-border">|</span>
+              <Link
+                href="/privacy"
+                className="hover:text-dark-text transition"
+              >
+                プライバシーポリシー
+              </Link>
+            </div>
             <p>&copy; 2026 DramaAI. All rights reserved.</p>
           </div>
         </footer>

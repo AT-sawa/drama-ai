@@ -182,6 +182,18 @@ export default function RegisterPage() {
             {loading ? "登録中..." : "アカウントを作成"}
           </button>
 
+          <p className="text-center text-xs text-dark-muted/70">
+            アカウントを作成することで、
+            <Link href="/terms" className="text-accent hover:underline">
+              利用規約
+            </Link>
+            および
+            <Link href="/privacy" className="text-accent hover:underline">
+              プライバシーポリシー
+            </Link>
+            に同意したものとみなします。
+          </p>
+
           <p className="text-center text-sm text-dark-muted">
             既にアカウントをお持ちですか？{" "}
             <Link href="/login" className="text-accent hover:underline">
