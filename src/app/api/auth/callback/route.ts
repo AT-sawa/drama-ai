@@ -27,6 +27,13 @@ export async function GET(request: NextRequest) {
       }
     );
     await supabase.auth.exchangeCodeForSession(code);
+
+    // next パラメータがあればそちらにリダイレクト（パスワードリセット等）
+    const next = searchParams.get("next");
+    if (next && next.startsWith("/")) {
+      return NextResponse.redirect(`${origin}${next}`);
+    }
+
     return NextResponse.redirect(`${origin}/?welcome=true`);
   }
 

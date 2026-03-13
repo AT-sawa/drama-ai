@@ -25,7 +25,7 @@ export default function RootLayout({
         <footer className="border-t border-dark-border py-8 text-center text-sm text-dark-muted">
           <div className="max-w-7xl mx-auto px-4">
             <p className="text-gradient font-bold text-lg mb-3">DramaAI</p>
-            <div className="flex items-center justify-center gap-4 mb-3">
+            <div className="flex items-center justify-center gap-4 mb-3 flex-wrap">
               <Link
                 href="/terms"
                 className="hover:text-dark-text transition"
@@ -38,6 +38,13 @@ export default function RootLayout({
                 className="hover:text-dark-text transition"
               >
                 プライバシーポリシー
+              </Link>
+              <span className="text-dark-border">|</span>
+              <Link
+                href="/tokushoho"
+                className="hover:text-dark-text transition"
+              >
+                特定商取引法に基づく表記
               </Link>
             </div>
             <p>&copy; 2026 DramaAI. All rights reserved.</p>
