@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -16,42 +16,47 @@ export default function ResetPasswordConfirmPage() {
   const router = useRouter();
   const supabase = createClient();
 
+  const finishChecking = useCallback(() => {
+    // 少し待ってからチェック完了にする（セッション確立のラグ対策）
+    setTimeout(() => setChecking(false), 500);
+  }, []);
+
   useEffect(() => {
-    // まず既存セッションを確認
-    async function checkSession() {
+    // onAuthStateChange でセッション変更をリアルタイム検知
+    // Supabaseクライアントが URL ハッシュ (#access_token=...) を自動で処理し、
+    // PASSWORD_RECOVERY イベントを発火する
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" && session) {
+        setIsAuthenticated(true);
+        setChecking(false);
+      } else if (event === "SIGNED_IN" && session) {
+        setIsAuthenticated(true);
+        setChecking(false);
+      }
+    });
+
+    // 初回: 既にセッションがある場合（ページリロード等）
+    async function checkExistingSession() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
         setIsAuthenticated(true);
         setChecking(false);
-        return;
+      } else {
+        // URLハッシュからのトークン取得を待つ（最大5秒）
+        setTimeout(() => {
+          setChecking((current) => {
+            // まだチェック中ならタイムアウトとして終了
+            return false;
+          });
+        }, 5000);
       }
-
-      // セッションがまだない場合は少し待ってリトライ
-      // （コールバックからのリダイレクト直後はCookieの反映にラグがある場合がある）
-      setTimeout(async () => {
-        const {
-          data: { session: retrySession },
-        } = await supabase.auth.getSession();
-        if (retrySession) {
-          setIsAuthenticated(true);
-        }
-        setChecking(false);
-      }, 1000);
     }
 
-    // onAuthStateChange でリアルタイムにセッション変更を検知
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN")) {
-        setIsAuthenticated(true);
-        setChecking(false);
-      }
-    });
-
-    checkSession();
+    checkExistingSession();
 
     return () => {
       subscription.unsubscribe();
@@ -90,7 +95,10 @@ export default function ResetPasswordConfirmPage() {
   if (checking) {
     return (
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-dark-muted text-sm">認証情報を確認中...</p>
+        </div>
       </div>
     );
   }
@@ -115,9 +123,7 @@ export default function ResetPasswordConfirmPage() {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-bold mb-2">
-              リンクが無効です
-            </h2>
+            <h2 className="text-xl font-bold mb-2">リンクが無効です</h2>
             <p className="text-dark-muted mb-6">
               パスワードリセットリンクが無効または期限切れです。
               もう一度リセットメールを送信してください。
