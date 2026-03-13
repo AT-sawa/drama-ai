@@ -1,0 +1,41 @@
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+/**
+ * パスワードリセット専用コールバック
+ * Supabaseのリダイレクト先にクエリパラメータを含めると
+ * code パラメータが正しく付与されない問題を回避するため、
+ * 専用のエンドポイントとして分離
+ */
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get("code");
+
+  if (code) {
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key",
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            cookieStore.set({ name, value, ...options });
+          },
+          remove(name: string, options: CookieOptions) {
+            cookieStore.delete({ name, ...options });
+          },
+        },
+      }
+    );
+    await supabase.auth.exchangeCodeForSession(code);
+    return NextResponse.redirect(`${origin}/reset-password/confirm`);
+  }
+
+  // code がない場合はリセット申請ページへ
+  return NextResponse.redirect(`${origin}/reset-password`);
+}

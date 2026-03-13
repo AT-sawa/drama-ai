@@ -17,16 +17,45 @@ export default function ResetPasswordConfirmPage() {
   const supabase = createClient();
 
   useEffect(() => {
+    // まず既存セッションを確認
     async function checkSession() {
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session) {
         setIsAuthenticated(true);
+        setChecking(false);
+        return;
       }
-      setChecking(false);
+
+      // セッションがまだない場合は少し待ってリトライ
+      // （コールバックからのリダイレクト直後はCookieの反映にラグがある場合がある）
+      setTimeout(async () => {
+        const {
+          data: { session: retrySession },
+        } = await supabase.auth.getSession();
+        if (retrySession) {
+          setIsAuthenticated(true);
+        }
+        setChecking(false);
+      }, 1000);
     }
+
+    // onAuthStateChange でリアルタイムにセッション変更を検知
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN")) {
+        setIsAuthenticated(true);
+        setChecking(false);
+      }
+    });
+
     checkSession();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
