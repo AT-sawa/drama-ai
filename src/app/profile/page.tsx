@@ -22,6 +22,11 @@ export default function ProfilePage() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingPass, setSavingPass] = useState(false);
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState<{ type: "error"; text: string } | null>(null);
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -102,6 +107,23 @@ export default function ProfilePage() {
       setConfirmPassword("");
     }
     setSavingPass(false);
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    setDeleteMsg(null);
+
+    const res = await fetch("/api/account/delete", { method: "POST" });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setDeleteMsg({ type: "error", text: data.error || "削除に失敗しました" });
+      setDeleting(false);
+      return;
+    }
+
+    await supabase.auth.signOut();
+    window.location.href = "/";
   }
 
   if (loading) {
@@ -204,6 +226,55 @@ export default function ProfilePage() {
             {savingPass ? "更新中..." : "パスワードを変更"}
           </button>
         </form>
+
+        {/* アカウント削除 */}
+        <div className="bg-dark-card border border-red-500/30 rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-red-400">退会（アカウント削除）</h2>
+          <p className="text-dark-muted text-sm">
+            アカウントを削除すると、すべてのデータ（プロフィール、作品、購入履歴など）が完全に削除されます。この操作は取り消せません。
+          </p>
+          {deleteMsg && (
+            <div className="p-3 rounded-lg text-sm bg-red-500/10 border border-red-500/30 text-red-400">
+              {deleteMsg.text}
+            </div>
+          )}
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="border border-red-500/50 text-red-400 hover:bg-red-500/10 font-semibold px-6 py-2.5 rounded-lg transition"
+            >
+              アカウントを削除する
+            </button>
+          ) : (
+            <div className="space-y-3 bg-dark-bg border border-dark-border rounded-lg p-4">
+              <p className="text-sm text-red-400 font-medium">
+                本当に削除しますか？確認のため「削除」と入力してください。
+              </p>
+              <input
+                type="text"
+                value={deleteText}
+                onChange={(e) => setDeleteText(e.target.value)}
+                placeholder="削除"
+                className="w-full bg-dark-card border border-dark-border rounded-lg px-4 py-2.5 text-dark-text placeholder-dark-muted/50 focus:outline-none focus:border-red-500 transition"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteText !== "削除" || deleting}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-lg transition"
+                >
+                  {deleting ? "削除中..." : "完全に削除する"}
+                </button>
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteText(""); }}
+                  className="border border-dark-border hover:bg-dark-border/50 text-dark-text px-6 py-2.5 rounded-lg transition"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
