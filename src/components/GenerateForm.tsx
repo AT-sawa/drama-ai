@@ -14,6 +14,7 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
   const [title, setTitle] = useState(`エピソード ${episodeNumber}`);
   const [duration, setDuration] = useState<5 | 10>(10);
   const [mode, setMode] = useState<"std" | "pro">("pro");
+  const [enableAudio, setEnableAudio] = useState(true);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +63,8 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
           const min = Math.floor(elapsed / 60);
           const sec = elapsed % 60;
           const timeStr = min > 0 ? `${min}分${sec}秒` : `${sec}秒`;
-          setStatus(`Kling AI (${mode === "pro" ? "Pro" : "Standard"}) が動画を生成中... (${timeStr}経過)`);
+          const modeLabel = mode === "pro" ? "Pro" : "Standard";
+          setStatus(`Kling AI (${modeLabel}) が動画を生成中... (${timeStr}経過)`);
         }
       } catch {
         // ネットワークエラーは無視して次回リトライ
@@ -87,7 +89,8 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
           title,
           prompt: prompt.trim(),
           duration,
-          mode,
+          mode: enableAudio ? "pro" : mode,
+          enable_audio: enableAudio,
         }),
       });
 
@@ -98,7 +101,8 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
       }
 
       if (data.task_id && data.episode?.id) {
-        setStatus(`Kling AI (${mode === "pro" ? "Pro" : "Standard"}) が動画を生成中... (0秒経過)`);
+        const audioLabel = enableAudio ? ", 音声付き" : "";
+        setStatus(`Kling AI (${enableAudio ? "Pro" : mode === "pro" ? "Pro" : "Standard"}${audioLabel}) が動画を生成中... (0秒経過)`);
         startPolling(data.task_id, data.episode.id);
       } else {
         setStatus("エピソードを作成しました（動画は後から確認してください）");
@@ -181,17 +185,20 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
           <div>
             <label className="block text-sm text-dark-muted mb-1">
               品質モード
+              {enableAudio && (
+                <span className="text-green-400 text-xs ml-1">（音声ON時はPro固定）</span>
+              )}
             </label>
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setMode("std")}
-                disabled={loading}
+                onClick={() => !enableAudio && setMode("std")}
+                disabled={loading || enableAudio}
                 className={`flex-1 py-2 rounded-lg border text-sm font-medium transition ${
-                  mode === "std"
+                  !enableAudio && mode === "std"
                     ? "bg-accent/20 border-accent text-accent"
-                    : "bg-dark-bg border-dark-border text-dark-muted hover:border-dark-text"
-                } disabled:opacity-50`}
+                    : "bg-dark-bg border-dark-border text-dark-muted"
+                } ${enableAudio ? "opacity-40 cursor-not-allowed" : "hover:border-dark-text"} disabled:opacity-40`}
               >
                 Standard
               </button>
@@ -200,7 +207,7 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
                 onClick={() => setMode("pro")}
                 disabled={loading}
                 className={`flex-1 py-2 rounded-lg border text-sm font-medium transition ${
-                  mode === "pro"
+                  enableAudio || mode === "pro"
                     ? "bg-accent/20 border-accent text-accent"
                     : "bg-dark-bg border-dark-border text-dark-muted hover:border-dark-text"
                 } disabled:opacity-50`}
@@ -211,9 +218,41 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
           </div>
         </div>
 
+        {/* ネイティブ音声トグル */}
+        <div>
+          <label className="block text-sm text-dark-muted mb-1">
+            ネイティブ音声
+          </label>
+          <button
+            type="button"
+            onClick={() => setEnableAudio(!enableAudio)}
+            disabled={loading}
+            className={`w-full py-2.5 rounded-lg border text-sm font-medium transition flex items-center justify-center gap-2 ${
+              enableAudio
+                ? "bg-green-500/20 border-green-500 text-green-400"
+                : "bg-dark-bg border-dark-border text-dark-muted hover:border-dark-text"
+            } disabled:opacity-50`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {enableAudio ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M6.5 8.788V15.212a1 1 0 001.632.772l3.576-2.788a1 1 0 000-1.544l-3.576-2.788A1 1 0 006.5 8.788z" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+              )}
+            </svg>
+            {enableAudio ? "音声ON（環境音・効果音を自動生成）" : "音声OFF（映像のみ）"}
+          </button>
+        </div>
+
         <div className="text-xs text-dark-muted bg-dark-bg/50 rounded-lg px-3 py-2">
           💡 <strong>Pro</strong>モードはプロンプトの内容をより正確に反映します。
           <strong>10秒</strong>でより長いシーンを生成できます。
+          {enableAudio && (
+            <>
+              <br />
+              🔊 <strong>ネイティブ音声</strong>を有効にすると、Kling AIが映像に合った環境音・効果音・ナレーションを自動生成します（Proモード固定）。
+            </>
+          )}
         </div>
 
         <div>

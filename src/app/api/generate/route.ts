@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
       prompt,
       duration = 10,
       mode = "pro",
+      enable_audio = true,
     } = await request.json();
 
     if (!drama_id || !episode_number || !title || !prompt) {
@@ -84,7 +85,9 @@ export async function POST(request: NextRequest) {
 
     // duration と mode のバリデーション
     const validDuration = duration === 5 ? 5 : 10;
-    const validMode = mode === "std" ? "std" : "pro";
+    // enable_audio はProモードでのみ利用可能
+    const validEnableAudio = !!enable_audio;
+    const validMode = validEnableAudio ? "pro" : (mode === "std" ? "std" : "pro");
 
     // ドラマ所有者確認
     const { data: drama } = await supabase
@@ -124,8 +127,9 @@ export async function POST(request: NextRequest) {
             cfg_scale: 0.5,
             duration: validDuration,
             aspect_ratio: "16:9",
-            version: "2.0",
+            version: "2.6",
             mode: validMode,
+            ...(validEnableAudio ? { enable_audio: true } : {}),
           },
         }),
       });
@@ -171,7 +175,7 @@ export async function POST(request: NextRequest) {
       amount: -GENERATE_COST,
       balance_after: newBalance,
       reference_id: drama_id,
-      description: `AI動画生成 (${validMode === "pro" ? "Pro" : "Std"}, ${validDuration}秒): ${title}`,
+      description: `AI動画生成 (${validMode === "pro" ? "Pro" : "Std"}, ${validDuration}秒${validEnableAudio ? ", 音声付き" : ""}): ${title}`,
     });
 
     // エピソード作成（動画は後からポーリングで更新）
