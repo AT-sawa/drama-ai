@@ -76,6 +76,13 @@ export default function CreatorDashboard() {
   const [showEpFrameCapture, setShowEpFrameCapture] = useState(false);
   const [uploadingEpThumbnail, setUploadingEpThumbnail] = useState(false);
 
+  // エピソード音声（BGM）
+  const [editingAudioEp, setEditingAudioEp] = useState<Episode | null>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [episodeAudioMap, setEpisodeAudioMap] = useState<Record<string, string>>({});
+
   useEffect(() => {
     async function load() {
       const {
@@ -398,6 +405,79 @@ export default function CreatorDashboard() {
     const file = new File([blob], "ep-frame-capture.jpg", { type: "image/jpeg" });
     setEditEpThumbnailFile(file);
     setEditEpThumbnailPreview(URL.createObjectURL(blob));
+  }
+
+  // ====== エピソード音声（BGM） ======
+  async function checkEpisodeAudio(episodeId: string) {
+    try {
+      const res = await fetch(`/api/audio/${episodeId}`);
+      const data = await res.json();
+      if (data.audio_url) {
+        setEpisodeAudioMap((prev) => ({ ...prev, [episodeId]: data.audio_url }));
+      }
+    } catch {}
+  }
+
+  function openAudioEdit(ep: Episode) {
+    setEditingAudioEp(ep);
+    setAudioFile(null);
+    setAudioError(null);
+    checkEpisodeAudio(ep.id);
+  }
+
+  async function handleUploadAudio() {
+    if (!editingAudioEp || !audioFile) return;
+    setUploadingAudio(true);
+    setAudioError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", audioFile);
+      formData.append("episode_id", editingAudioEp.id);
+
+      const res = await fetch("/api/upload/audio", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setEpisodeAudioMap((prev) => ({ ...prev, [editingAudioEp.id]: data.audio_url }));
+      setEditingAudioEp(null);
+    } catch (err) {
+      setAudioError(err instanceof Error ? err.message : "アップロードに失敗しました");
+    } finally {
+      setUploadingAudio(false);
+    }
+  }
+
+  async function handleDeleteAudio() {
+    if (!editingAudioEp) return;
+    setUploadingAudio(true);
+    setAudioError(null);
+
+    try {
+      const res = await fetch("/api/upload/audio", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ episode_id: editingAudioEp.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error);
+      }
+
+      setEpisodeAudioMap((prev) => {
+        const next = { ...prev };
+        delete next[editingAudioEp.id];
+        return next;
+      });
+      setEditingAudioEp(null);
+    } catch (err) {
+      setAudioError(err instanceof Error ? err.message : "削除に失敗しました");
+    } finally {
+      setUploadingAudio(false);
+    }
   }
 
   if (loading) {
@@ -794,6 +874,96 @@ export default function CreatorDashboard() {
         </div>
       )}
 
+      {/* ====== BGM設定モーダル ====== */}
+      {editingAudioEp && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-card border border-dark-border rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-1">BGM / 音声設定</h2>
+            <p className="text-sm text-dark-muted mb-4">
+              EP.{editingAudioEp.episode_number} {editingAudioEp.title}
+            </p>
+
+            {/* 現在のBGM状態 */}
+            {episodeAudioMap[editingAudioEp.id] ? (
+              <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                  </svg>
+                  <span className="text-sm text-green-400 font-medium">BGM設定済み</span>
+                </div>
+                <audio
+                  src={episodeAudioMap[editingAudioEp.id]}
+                  controls
+                  className="w-full h-8"
+                  style={{ filter: "invert(1)" }}
+                />
+                <button
+                  onClick={handleDeleteAudio}
+                  disabled={uploadingAudio}
+                  className="mt-2 text-xs text-red-400 hover:text-red-300 transition"
+                >
+                  BGMを削除
+                </button>
+              </div>
+            ) : (
+              <div className="mb-4 p-3 bg-dark-border/30 border border-dark-border rounded-lg text-sm text-dark-muted">
+                BGMが設定されていません
+              </div>
+            )}
+
+            {/* ファイル選択 */}
+            <div className="mb-4">
+              <label className="block text-sm text-dark-muted mb-2">
+                {episodeAudioMap[editingAudioEp.id] ? "BGMを変更" : "音声ファイルを選択"}
+              </label>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  setAudioFile(f);
+                  setAudioError(null);
+                }}
+                className="w-full text-sm text-dark-muted file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-dark-border file:text-dark-text file:cursor-pointer hover:file:bg-dark-border/70 file:transition"
+              />
+              <p className="text-xs text-dark-muted mt-1">
+                対応形式: MP3, WAV, OGG, AAC, M4A（20MB以下）
+              </p>
+            </div>
+
+            {audioFile && (
+              <div className="mb-4 p-3 bg-dark-bg border border-dark-border rounded-lg">
+                <p className="text-sm text-dark-text truncate">{audioFile.name}</p>
+                <p className="text-xs text-dark-muted">{(audioFile.size / 1024 / 1024).toFixed(1)} MB</p>
+              </div>
+            )}
+
+            {audioError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+                {audioError}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setEditingAudioEp(null)}
+                className="flex-1 bg-dark-border text-dark-text py-2.5 rounded-lg hover:bg-dark-border/70 transition"
+              >
+                閉じる
+              </button>
+              <button
+                onClick={handleUploadAudio}
+                disabled={uploadingAudio || !audioFile}
+                className="flex-1 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition"
+              >
+                {uploadingAudio ? "アップロード中..." : "アップロード"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ====== ドラマ一覧 ====== */}
       <h2 className="text-xl font-bold mb-4">あなたの作品</h2>
       {dramas.length > 0 ? (
@@ -946,6 +1116,19 @@ export default function CreatorDashboard() {
 
                             {/* エピソードアクション */}
                             <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => openAudioEdit(ep)}
+                                className={`p-1.5 rounded-lg transition ${
+                                  episodeAudioMap[ep.id]
+                                    ? "text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                                    : "text-dark-muted hover:text-dark-text hover:bg-dark-border/50"
+                                }`}
+                                title="BGM設定"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                                </svg>
+                              </button>
                               <button
                                 onClick={() => openEditEpisode(ep)}
                                 className="p-1.5 text-dark-muted hover:text-dark-text hover:bg-dark-border/50 rounded-lg transition"

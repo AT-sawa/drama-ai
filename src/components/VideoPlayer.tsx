@@ -1,15 +1,17 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect } from "react";
 
 interface Props {
   videoUrl: string | null;
   cloudflareVideoId: string | null;
   title: string;
+  audioUrl?: string | null;
 }
 
-export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
+export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const volumeRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -24,6 +26,43 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [buffered, setBuffered] = useState(0);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [audioLoaded, setAudioLoaded] = useState(false);
+
+  // 音声の同期
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audioUrl) return;
+
+    audio.volume = muted ? 0 : volume;
+
+    const handleCanPlay = () => setAudioLoaded(true);
+    const handleError = () => setAudioLoaded(false);
+
+    audio.addEventListener("canplaythrough", handleCanPlay);
+    audio.addEventListener("error", handleError);
+
+    return () => {
+      audio.removeEventListener("canplaythrough", handleCanPlay);
+      audio.removeEventListener("error", handleError);
+    };
+  }, [audioUrl]);
+
+  // 音量変更を音声にも反映
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = muted ? 0 : volume;
+    audio.muted = muted;
+  }, [volume, muted]);
+
+  // フルスクリーンの変更検知
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
 
   // Cloudflare Stream の場合は iframe を使用
   if (cloudflareVideoId) {
@@ -64,12 +103,24 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
     );
   }
 
-  // カスタムプレイヤー
-
   const formatTime = (t: number) => {
     const m = Math.floor(t / 60);
     const s = Math.floor(t % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const syncAudio = (action: "play" | "pause" | "seek", time?: number) => {
+    const audio = audioRef.current;
+    if (!audio || !audioLoaded) return;
+
+    if (action === "play") {
+      audio.currentTime = videoRef.current?.currentTime || 0;
+      audio.play().catch(() => {});
+    } else if (action === "pause") {
+      audio.pause();
+    } else if (action === "seek" && time !== undefined) {
+      audio.currentTime = time;
+    }
   };
 
   const togglePlay = () => {
@@ -77,9 +128,11 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
     if (!v) return;
     if (v.paused) {
       v.play();
+      syncAudio("play");
       setPlaying(true);
     } else {
       v.pause();
+      syncAudio("pause");
       setPlaying(false);
     }
   };
@@ -90,6 +143,15 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
     setCurrentTime(v.currentTime);
     if (v.buffered.length > 0) {
       setBuffered(v.buffered.end(v.buffered.length - 1));
+    }
+
+    // 音声の時間ズレ補正（0.3秒以上ズレたら同期）
+    const audio = audioRef.current;
+    if (audio && audioLoaded && !v.paused) {
+      const drift = Math.abs(audio.currentTime - v.currentTime);
+      if (drift > 0.3) {
+        audio.currentTime = v.currentTime;
+      }
     }
   };
 
@@ -105,8 +167,10 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
     if (!v || !bar) return;
     const rect = bar.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    v.currentTime = ratio * v.duration;
-    setCurrentTime(v.currentTime);
+    const newTime = ratio * v.duration;
+    v.currentTime = newTime;
+    syncAudio("seek", newTime);
+    setCurrentTime(newTime);
   };
 
   const handleVolumeClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -143,6 +207,7 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
   const handleEnded = () => {
     setPlaying(false);
     setShowControls(true);
+    syncAudio("pause");
   };
 
   const handleMouseMove = () => {
@@ -162,13 +227,14 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
   const skip = (seconds: number) => {
     const v = videoRef.current;
     if (!v) return;
-    v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + seconds));
+    const newTime = Math.max(0, Math.min(v.duration, v.currentTime + seconds));
+    v.currentTime = newTime;
+    syncAudio("seek", newTime);
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedProgress = duration > 0 ? (buffered / duration) * 100 : 0;
 
-  // Volume icon
   const VolumeIcon = () => {
     if (muted || volume === 0) {
       return (
@@ -210,12 +276,17 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPlay={() => { setPlaying(true); syncAudio("play"); }}
+        onPause={() => { setPlaying(false); syncAudio("pause"); }}
         playsInline
       >
         お使いのブラウザは動画再生に対応していません。
       </video>
+
+      {/* 音声要素（非表示） */}
+      {audioUrl && (
+        <audio ref={audioRef} src={audioUrl} preload="auto" loop />
+      )}
 
       {/* 中央の大きな再生ボタン（停止中のみ） */}
       {!playing && (
@@ -231,6 +302,16 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
         </button>
       )}
 
+      {/* 音声バッジ */}
+      {audioUrl && audioLoaded && showControls && (
+        <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+          </svg>
+          BGM
+        </div>
+      )}
+
       {/* コントロールバー */}
       <div
         className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pb-3 pt-10 transition-opacity duration-300 ${
@@ -240,15 +321,13 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
         {/* プログレスバー */}
         <div
           ref={progressRef}
-          className="w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group/progress hover:h-2.5 transition-all"
+          className="w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group/progress hover:h-2.5 transition-all relative"
           onClick={handleProgressClick}
         >
-          {/* バッファ済み */}
           <div
             className="absolute h-full bg-white/30 rounded-full"
             style={{ width: `${bufferedProgress}%` }}
           />
-          {/* 再生位置 */}
           <div
             className="h-full bg-accent rounded-full relative"
             style={{ width: `${progress}%` }}
@@ -301,7 +380,7 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title }: Props) {
             >
               <div
                 ref={volumeRef}
-                className="w-20 h-1.5 bg-white/20 rounded-full cursor-pointer hover:h-2 transition-all"
+                className="w-20 h-1.5 bg-white/20 rounded-full cursor-pointer hover:h-2 transition-all relative"
                 onClick={handleVolumeClick}
               >
                 <div

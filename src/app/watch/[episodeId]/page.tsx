@@ -20,6 +20,7 @@ export default function WatchPage() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -71,6 +72,17 @@ export default function WatchPage() {
 
       if ((views && views.length > 0) || ep.is_free || ep.coin_price === 0) {
         setHasAccess(true);
+      }
+
+      // 音声ファイルの取得
+      try {
+        const audioRes = await fetch(`/api/audio/${episodeId}`);
+        const audioData = await audioRes.json();
+        if (audioData.audio_url) {
+          setAudioUrl(audioData.audio_url);
+        }
+      } catch {
+        // 音声がない場合は無視
       }
 
       setLoading(false);
@@ -156,6 +168,7 @@ export default function WatchPage() {
           videoUrl={episode.video_url}
           cloudflareVideoId={episode.cloudflare_video_id}
           title={episode.title}
+          audioUrl={audioUrl}
         />
       ) : (
         <div className="aspect-video bg-dark-card border border-dark-border rounded-xl flex items-center justify-center">
