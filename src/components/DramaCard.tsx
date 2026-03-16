@@ -61,7 +61,6 @@ export function DramaCard({ drama }: { drama: Drama }) {
           <Link
             href={`/creator/${drama.creator.id}`}
             className="flex items-center gap-1.5 mt-1 mb-2 w-fit"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="w-5 h-5 rounded-full bg-accent/30 flex items-center justify-center text-[10px] font-bold text-accent">
               {drama.creator.display_name.charAt(0).toUpperCase()}
