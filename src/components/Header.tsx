@@ -85,6 +85,13 @@ export function Header() {
                       ❤️ お気に入り一覧
                     </Link>
                     <Link
+                      href="/history"
+                      className="block px-4 py-2 text-sm hover:bg-dark-border/50 transition"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      🕐 視聴履歴
+                    </Link>
+                    <Link
                       href="/coins"
                       className="block px-4 py-2 text-sm hover:bg-dark-border/50 transition"
                       onClick={() => setMenuOpen(false)}
