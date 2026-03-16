@@ -97,14 +97,17 @@ export default async function DramaDetailPage({
           </div>
 
           {drama.creator && (
-            <div className="mt-4 flex items-center gap-3">
+            <Link
+              href={`/creator/${drama.creator.id}`}
+              className="mt-4 flex items-center gap-3 group/creator w-fit"
+            >
               <div className="w-8 h-8 rounded-full bg-accent/30 flex items-center justify-center text-sm font-bold text-accent">
                 {drama.creator.display_name.charAt(0).toUpperCase()}
               </div>
-              <span className="text-sm text-dark-muted">
+              <span className="text-sm text-dark-muted group-hover/creator:text-accent transition">
                 {drama.creator.display_name}
               </span>
-            </div>
+            </Link>
           )}
 
           {drama.tags && drama.tags.length > 0 && (

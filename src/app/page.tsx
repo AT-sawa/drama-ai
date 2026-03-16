@@ -16,7 +16,7 @@ export default async function HomePage({
 
   let query = supabase
     .from("dramas")
-    .select("*")
+    .select("*, creator:profiles(id, display_name)")
     .eq("is_published", true)
     .order("created_at", { ascending: false });
 
