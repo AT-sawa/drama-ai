@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -16,51 +16,20 @@ export default function ResetPasswordConfirmPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const finishChecking = useCallback(() => {
-    // 少し待ってからチェック完了にする（セッション確立のラグ対策）
-    setTimeout(() => setChecking(false), 500);
-  }, []);
-
   useEffect(() => {
-    // onAuthStateChange でセッション変更をリアルタイム検知
-    // Supabaseクライアントが URL ハッシュ (#access_token=...) を自動で処理し、
-    // PASSWORD_RECOVERY イベントを発火する
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" && session) {
-        setIsAuthenticated(true);
-        setChecking(false);
-      } else if (event === "SIGNED_IN" && session) {
-        setIsAuthenticated(true);
-        setChecking(false);
-      }
-    });
-
-    // 初回: 既にセッションがある場合（ページリロード等）
-    async function checkExistingSession() {
+    // PKCE フローではコールバックでセッションが確立済み
+    // セッションの存在を確認するだけでOK
+    async function checkSession() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
         setIsAuthenticated(true);
-        setChecking(false);
-      } else {
-        // URLハッシュからのトークン取得を待つ（最大5秒）
-        setTimeout(() => {
-          setChecking((current) => {
-            // まだチェック中ならタイムアウトとして終了
-            return false;
-          });
-        }, 5000);
       }
+      setChecking(false);
     }
 
-    checkExistingSession();
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    checkSession();
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
