@@ -62,7 +62,7 @@ export default async function DramaDetailPage({
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* ドラマ情報ヘッダー */}
-      <div className="flex flex-col md:flex-row gap-8 mb-10">
+      <div className="flex flex-col md:flex-row gap-5 md:gap-8 mb-10">
         <div className="w-full md:w-80 flex-shrink-0">
           <div className="aspect-video relative rounded-xl overflow-hidden bg-dark-card border border-dark-border">
             {drama.thumbnail_url ? (
@@ -98,12 +98,12 @@ export default async function DramaDetailPage({
               {GENRE_LABELS[drama.genre] || drama.genre}
             </span>
           </div>
-          <h1 className="text-3xl font-bold mb-3">{drama.title}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-3">{drama.title}</h1>
           <p className="text-dark-muted leading-relaxed mb-4">
             {drama.description}
           </p>
 
-          <div className="flex items-center gap-6 text-sm text-dark-muted">
+          <div className="flex flex-wrap items-center gap-3 md:gap-6 text-sm text-dark-muted">
             <span>{drama.total_episodes} エピソード</span>
             <span>{drama.total_views.toLocaleString()} 回視聴</span>
             <LikeButton

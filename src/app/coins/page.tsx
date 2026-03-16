@@ -86,7 +86,7 @@ export default function CoinsPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* 残高表示 */}
-      <div className="bg-dark-card border border-dark-border rounded-xl p-8 text-center mb-8">
+      <div className="bg-dark-card border border-dark-border rounded-xl p-4 md:p-8 text-center mb-8">
         <p className="text-dark-muted text-sm mb-1">現在のコイン残高</p>
         <div className="flex items-center justify-center gap-2">
           <svg
@@ -158,8 +158,8 @@ export default function CoinsPage() {
       {/* 取引履歴 */}
       <h2 className="text-xl font-bold mb-4">取引履歴</h2>
       {transactions.length > 0 ? (
-        <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
-          <table className="w-full">
+        <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[500px]">
             <thead>
               <tr className="border-b border-dark-border text-sm text-dark-muted">
                 <th className="text-left px-4 py-3 font-medium">日時</th>
