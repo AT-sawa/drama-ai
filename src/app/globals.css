@@ -41,6 +41,15 @@ body {
   animation: toast-in 0.3s ease-out;
 }
 
+/* 横スクロールバー非表示 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* スクロールバー */
 ::-webkit-scrollbar {
   width: 6px;

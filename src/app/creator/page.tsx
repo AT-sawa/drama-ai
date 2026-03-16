@@ -504,18 +504,18 @@ export default function CreatorDashboard() {
       </div>
 
       {/* 統計カード */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-dark-card border border-dark-border rounded-xl p-6">
-          <p className="text-dark-muted text-sm">作品数</p>
-          <p className="text-3xl font-bold mt-1">{dramas.length}</p>
+      <div className="grid grid-cols-3 gap-2 md:gap-4 mb-8">
+        <div className="bg-dark-card border border-dark-border rounded-xl p-3 md:p-6 text-center md:text-left">
+          <p className="text-dark-muted text-xs md:text-sm">作品数</p>
+          <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1">{dramas.length}</p>
         </div>
-        <div className="bg-dark-card border border-dark-border rounded-xl p-6">
-          <p className="text-dark-muted text-sm">総視聴数</p>
-          <p className="text-3xl font-bold mt-1">{stats.totalViews.toLocaleString()}</p>
+        <div className="bg-dark-card border border-dark-border rounded-xl p-3 md:p-6 text-center md:text-left">
+          <p className="text-dark-muted text-xs md:text-sm">総視聴数</p>
+          <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1">{stats.totalViews.toLocaleString()}</p>
         </div>
-        <div className="bg-dark-card border border-dark-border rounded-xl p-6">
-          <p className="text-dark-muted text-sm">収益（コイン）</p>
-          <p className="text-3xl font-bold mt-1 text-coin">{stats.totalRevenue.toLocaleString()}</p>
+        <div className="bg-dark-card border border-dark-border rounded-xl p-3 md:p-6 text-center md:text-left">
+          <p className="text-dark-muted text-xs md:text-sm truncate">収益（コイン）</p>
+          <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1 text-coin">{stats.totalRevenue.toLocaleString()}</p>
         </div>
       </div>
 
@@ -974,11 +974,11 @@ export default function CreatorDashboard() {
 
             return (
               <div key={drama.id} className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
-                <div className="p-5 flex items-center gap-4">
+                <div className="p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-3 md:gap-4">
                   {/* サムネイル */}
                   <button
                     onClick={() => openDramaThumbnailEdit(drama)}
-                    className="w-28 aspect-video flex-shrink-0 rounded-lg overflow-hidden bg-dark-border relative group"
+                    className="w-full sm:w-28 aspect-video flex-shrink-0 rounded-lg overflow-hidden bg-dark-border relative group"
                     title="サムネイルを変更"
                   >
                     {drama.thumbnail_url ? (
@@ -1000,8 +1000,8 @@ export default function CreatorDashboard() {
 
                   {/* ドラマ情報 */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-lg truncate">{drama.title}</h3>
+                    <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mb-1">
+                      <h3 className="font-bold text-base md:text-lg truncate">{drama.title}</h3>
                       <span className="px-2 py-0.5 text-xs bg-accent/20 text-accent rounded-full flex-shrink-0">
                         {GENRE_LABELS[drama.genre] || drama.genre}
                       </span>
@@ -1012,35 +1012,37 @@ export default function CreatorDashboard() {
                       )}
                     </div>
                     <p className="text-sm text-dark-muted truncate">{drama.description || "説明なし"}</p>
-                    <div className="flex items-center gap-4 mt-2 text-xs text-dark-muted">
+                    <div className="flex items-center gap-4 mt-2 text-xs text-dark-muted whitespace-nowrap">
                       <span>{drama.total_episodes} エピソード</span>
                       <span>{drama.total_views} 回視聴</span>
                     </div>
                   </div>
 
                   {/* アクションボタン */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => openEditDrama(drama)}
-                      className="p-2 text-dark-muted hover:text-dark-text hover:bg-dark-border/50 rounded-lg transition"
-                      title="編集"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => setDeletingDrama(drama)}
-                      className="p-2 text-dark-muted hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
-                      title="削除"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap sm:flex-nowrap">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEditDrama(drama)}
+                        className="p-2 text-dark-muted hover:text-dark-text hover:bg-dark-border/50 rounded-lg transition"
+                        title="編集"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setDeletingDrama(drama)}
+                        className="p-2 text-dark-muted hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                        title="削除"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                     <Link
                       href={`/creator/generate?drama=${drama.id}`}
-                      className="bg-accent/10 hover:bg-accent/20 text-accent px-4 py-2 rounded-lg transition text-sm font-medium"
+                      className="bg-accent/10 hover:bg-accent/20 text-accent px-3 md:px-4 py-2 rounded-lg transition text-xs md:text-sm font-medium whitespace-nowrap"
                     >
                       エピソード追加
                     </Link>
