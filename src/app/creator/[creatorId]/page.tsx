@@ -1,10 +1,59 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DramaCard } from "@/components/DramaCard";
+import { getSiteUrl } from "@/lib/utils";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import type { Drama, Profile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { creatorId: string };
+}): Promise<Metadata> {
+  const supabase = createServerSupabaseClient();
+  const { data: creator } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", params.creatorId)
+    .eq("is_creator", true)
+    .single();
+
+  if (!creator) {
+    return { title: "クリエイターが見つかりません" };
+  }
+
+  const siteUrl = getSiteUrl();
+  const title = `${creator.display_name}の作品一覧`;
+  const description = `${creator.display_name}が制作したAIドラマ作品をチェック`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      type: "profile",
+      title,
+      description,
+      url: `${siteUrl}/creator/${params.creatorId}`,
+      images: [
+        {
+          url: `/api/og?title=${encodeURIComponent(creator.display_name)}&description=${encodeURIComponent(description)}&type=creator`,
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [`/api/og?title=${encodeURIComponent(creator.display_name)}&description=${encodeURIComponent(description)}&type=creator`],
+    },
+  };
+}
 
 export default async function CreatorPublicPage({
   params,

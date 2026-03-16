@@ -3,13 +3,44 @@ import { Inter } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { Header } from "@/components/Header";
+import { getSiteUrl } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const siteUrl = getSiteUrl();
+
 export const metadata: Metadata = {
-  title: "DramaAI - AI動画配信サービス",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "DramaAI - AI動画配信サービス",
+    template: "%s | DramaAI",
+  },
   description:
     "AIが生成するオリジナルドラマを楽しもう。クリエイターとして自分だけの作品を作ることもできます。",
+  openGraph: {
+    type: "website",
+    siteName: "DramaAI",
+    title: "DramaAI - AI動画配信サービス",
+    description:
+      "AIが生成するオリジナルドラマを楽しもう。クリエイターとして自分だけの作品を作ることもできます。",
+    url: siteUrl,
+    images: [
+      {
+        url: "/api/og?title=DramaAI&description=AI%E3%81%8C%E7%B4%A1%E3%81%90%E6%96%B0%E3%81%97%E3%81%84%E7%89%A9%E8%AA%9E",
+        width: 1200,
+        height: 630,
+        alt: "DramaAI - AI動画配信サービス",
+      },
+    ],
+    locale: "ja_JP",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DramaAI - AI動画配信サービス",
+    description:
+      "AIが生成するオリジナルドラマを楽しもう。クリエイターとして自分だけの作品を作ることもできます。",
+    images: ["/api/og?title=DramaAI&description=AI%E3%81%8C%E7%B4%A1%E3%81%90%E6%96%B0%E3%81%97%E3%81%84%E7%89%A9%E8%AA%9E"],
+  },
 };
 
 export default function RootLayout({

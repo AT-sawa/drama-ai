@@ -2,12 +2,67 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { EpisodeList } from "@/components/EpisodeList";
 import { LikeButton } from "@/components/LikeButton";
 import { GENRE_LABELS } from "@/lib/types";
+import { getSiteUrl } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import type { Episode } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  const supabase = createServerSupabaseClient();
+  const { data: drama } = await supabase
+    .from("dramas")
+    .select("title, description, thumbnail_url, genre, creator:profiles(display_name)")
+    .eq("id", params.id)
+    .eq("is_published", true)
+    .single();
+
+  if (!drama) {
+    return { title: "作品が見つかりません" };
+  }
+
+  const siteUrl = getSiteUrl();
+  const title = drama.title;
+  const description = drama.description || `${GENRE_LABELS[drama.genre] || drama.genre}ドラマ`;
+  const creator = drama.creator as unknown as { display_name: string } | { display_name: string }[] | null;
+  const creatorName = Array.isArray(creator) ? creator[0]?.display_name || "" : creator?.display_name || "";
+  const ogDescription = creatorName ? `${creatorName}の作品 - ${description}` : description;
+
+  const ogImageUrl = drama.thumbnail_url
+    || `/api/og?title=${encodeURIComponent(title)}&description=${encodeURIComponent(ogDescription)}&type=drama`;
+
+  return {
+    title,
+    description: ogDescription,
+    openGraph: {
+      type: "video.other",
+      title,
+      description: ogDescription,
+      url: `${siteUrl}/drama/${params.id}`,
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: ogDescription,
+      images: [ogImageUrl],
+    },
+  };
+}
 
 export default async function DramaDetailPage({
   params,
