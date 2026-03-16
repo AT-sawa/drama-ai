@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { EpisodeList } from "@/components/EpisodeList";
+import { LikeButton } from "@/components/LikeButton";
 import { GENRE_LABELS } from "@/lib/types";
 import Image from "next/image";
 import Link from "next/link";
@@ -37,6 +38,8 @@ export default async function DramaDetailPage({
   } = await supabase.auth.getUser();
 
   let viewedEpisodeIds = new Set<string>();
+  let isLiked = false;
+
   if (user) {
     const { data: views } = await supabase
       .from("views")
@@ -45,6 +48,15 @@ export default async function DramaDetailPage({
     if (views) {
       viewedEpisodeIds = new Set(views.map((v) => v.episode_id));
     }
+
+    // いいね状態を確認
+    const { data: likeData } = await supabase
+      .from("likes")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("drama_id", params.id)
+      .single();
+    isLiked = !!likeData;
   }
 
   return (
@@ -94,6 +106,12 @@ export default async function DramaDetailPage({
           <div className="flex items-center gap-6 text-sm text-dark-muted">
             <span>{drama.total_episodes} エピソード</span>
             <span>{drama.total_views.toLocaleString()} 回視聴</span>
+            <LikeButton
+              dramaId={drama.id}
+              initialLikesCount={drama.likes_count || 0}
+              initialIsLiked={isLiked}
+              isLoggedIn={!!user}
+            />
           </div>
 
           {drama.creator && (

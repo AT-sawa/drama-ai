@@ -19,10 +19,18 @@ export interface Drama {
   tags: string[];
   total_episodes: number;
   total_views: number;
+  likes_count: number;
   is_published: boolean;
   created_at: string;
   updated_at: string;
   creator?: Profile;
+}
+
+export interface Like {
+  id: string;
+  user_id: string;
+  drama_id: string;
+  created_at: string;
 }
 
 export interface Episode {
