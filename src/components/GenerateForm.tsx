@@ -117,7 +117,7 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
   }
 
   return (
-    <div className="bg-dark-card border border-dark-border rounded-xl p-6">
+    <div className="bg-dark-card border border-dark-border rounded-xl p-4 md:p-6">
       <h3 className="text-lg font-bold mb-4">AI動画生成（Kling AI）</h3>
 
       <div className="mb-4 flex items-center gap-2 text-sm">
@@ -149,7 +149,7 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
         </div>
 
         {/* 動画設定 */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm text-dark-muted mb-1">
               動画の長さ

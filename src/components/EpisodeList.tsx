@@ -45,7 +45,7 @@ export function EpisodeList({ episodes, viewedEpisodeIds }: Props) {
           <button
             key={opt.key}
             onClick={() => setSortKey(opt.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+            className={`px-3 py-2 rounded-full text-xs font-medium transition ${
               sortKey === opt.key
                 ? "bg-accent text-white"
                 : "bg-dark-card border border-dark-border text-dark-muted hover:border-accent/50"
@@ -64,9 +64,9 @@ export function EpisodeList({ episodes, viewedEpisodeIds }: Props) {
             <Link
               key={ep.id}
               href={`/watch/${ep.id}`}
-              className="flex gap-4 p-3 bg-dark-card border border-dark-border rounded-lg hover:border-accent/50 transition group"
+              className="flex gap-3 md:gap-4 p-3 bg-dark-card border border-dark-border rounded-lg hover:border-accent/50 transition group"
             >
-              <div className="w-40 aspect-video relative flex-shrink-0 rounded-md overflow-hidden bg-dark-border">
+              <div className="w-24 md:w-40 aspect-video relative flex-shrink-0 rounded-md overflow-hidden bg-dark-border">
                 {ep.thumbnail_url ? (
                   <Image
                     src={ep.thumbnail_url}

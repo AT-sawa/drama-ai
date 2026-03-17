@@ -3,7 +3,7 @@ import { EpisodeList } from "@/components/EpisodeList";
 import { LikeButton } from "@/components/LikeButton";
 import { CommentSection } from "@/components/CommentSection";
 import { GENRE_LABELS } from "@/lib/types";
-import { getSiteUrl } from "@/lib/utils";
+import { getSiteUrl, formatNumber } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -160,8 +160,8 @@ export default async function DramaDetailPage({
           </p>
 
           <div className="flex flex-wrap items-center gap-3 md:gap-6 text-sm text-dark-muted">
-            <span>{Number(drama.total_episodes).toLocaleString("en-US")} エピソード</span>
-            <span>{Number(drama.total_views).toLocaleString("en-US")}回視聴</span>
+            <span>{formatNumber(drama.total_episodes)} エピソード</span>
+            <span>{formatNumber(drama.total_views)}回視聴</span>
             <LikeButton
               dramaId={drama.id}
               initialLikesCount={drama.likes_count || 0}

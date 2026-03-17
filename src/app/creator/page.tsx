@@ -7,6 +7,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, Drama, Episode } from "@/lib/types";
 import { GENRE_LABELS, GENRES } from "@/lib/types";
+import { formatNumber } from "@/lib/utils";
 import { ThumbnailUpload } from "@/components/ThumbnailUpload";
 import { VideoFrameCapture } from "@/components/VideoFrameCapture";
 
@@ -511,11 +512,11 @@ export default function CreatorDashboard() {
         </div>
         <div className="bg-dark-card border border-dark-border rounded-xl p-3 md:p-6 text-center md:text-left">
           <p className="text-dark-muted text-xs md:text-sm">総視聴数</p>
-          <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1">{stats.totalViews.toLocaleString()}</p>
+          <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1">{formatNumber(stats.totalViews)}</p>
         </div>
         <Link href="/creator/payout" className="bg-dark-card border border-dark-border rounded-xl p-3 md:p-6 text-center md:text-left hover:border-green-500/50 transition group">
           <p className="text-dark-muted text-xs md:text-sm truncate">収益（コイン）</p>
-          <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1 text-coin">{stats.totalRevenue.toLocaleString()}</p>
+          <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1 text-coin">{formatNumber(stats.totalRevenue)}</p>
           <p className="text-xs text-green-400/70 group-hover:text-green-400 mt-1 hidden md:block">振込申請 →</p>
         </Link>
       </div>
