@@ -91,7 +91,7 @@ export default function RootLayout({
                 <ul className="space-y-2">
                   <li><Link href="/terms" className="hover:text-dark-text transition">利用規約</Link></li>
                   <li><Link href="/privacy" className="hover:text-dark-text transition">プライバシーポリシー</Link></li>
-                  <li><Link href="/tokushoho" className="hover:text-dark-text transition">特定商取引法に基づく表記</Link></li>
+                  <li><Link href="/tokushoho" className="hover:text-dark-text transition"><span className="md:hidden">特商法表記</span><span className="hidden md:inline">特定商取引法に基づく表記</span></Link></li>
                   <li><Link href="/contact" className="hover:text-dark-text transition">お問い合わせ</Link></li>
                 </ul>
               </div>
