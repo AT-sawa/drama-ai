@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 // コメント一覧取得
@@ -69,7 +69,7 @@ export async function POST(
   // ドラマ存在確認
   const { data: drama } = await supabase
     .from("dramas")
-    .select("id")
+    .select("id, title, creator_id")
     .eq("id", params.id)
     .eq("is_published", true)
     .single();
@@ -92,6 +92,27 @@ export async function POST(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // 作者に通知（自分自身へのコメントは通知しない）
+  if (drama.creator_id && drama.creator_id !== user.id) {
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user.id)
+        .single();
+      const serviceClient = createServiceRoleClient();
+      await serviceClient.from("notifications").insert({
+        user_id: drama.creator_id,
+        type: "comment",
+        title: "コメントが投稿されました",
+        message: `${profile?.display_name || "ユーザー"}さんが「${drama.title}」にコメントしました`,
+        link: `/drama/${params.id}`,
+      });
+    } catch {
+      // 通知失敗してもコメント自体は成功扱い
+    }
   }
 
   return NextResponse.json({ comment }, { status: 201 });

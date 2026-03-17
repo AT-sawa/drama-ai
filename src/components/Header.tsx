@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 import { CoinBalance } from "./CoinBalance";
+import { NotificationBell } from "./NotificationBell";
 
 export function Header() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -59,6 +60,7 @@ export function Header() {
           {profile ? (
             <>
               <CoinBalance balance={profile.coin_balance} />
+              <NotificationBell />
               {/* デスクトップ: アバターメニュー */}
               <div className="relative hidden md:block">
                 <button

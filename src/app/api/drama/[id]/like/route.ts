@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET(
   request: NextRequest,
@@ -63,7 +63,7 @@ export async function POST(
     // ドラマが存在するか確認
     const { data: drama } = await supabase
       .from("dramas")
-      .select("id")
+      .select("id, title, creator_id")
       .eq("id", dramaId)
       .eq("is_published", true)
       .single();
@@ -107,6 +107,27 @@ export async function POST(
 
       // likes_count をインクリメント
       await supabase.rpc("increment_likes_count", { p_drama_id: dramaId });
+
+      // 作者に通知（自分自身へのいいねは通知しない）
+      if (drama.creator_id && drama.creator_id !== user.id) {
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("display_name")
+            .eq("id", user.id)
+            .single();
+          const serviceClient = createServiceRoleClient();
+          await serviceClient.from("notifications").insert({
+            user_id: drama.creator_id,
+            type: "like",
+            title: "いいねされました",
+            message: `${profile?.display_name || "ユーザー"}さんが「${drama.title}」にいいねしました`,
+            link: `/drama/${dramaId}`,
+          });
+        } catch {
+          // 通知失敗してもいいね自体は成功扱い
+        }
+      }
 
       const { count } = await supabase
         .from("likes")

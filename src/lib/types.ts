@@ -91,6 +91,17 @@ export interface View {
   watched_at: string;
 }
 
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: "new_episode" | "like" | "comment" | "system";
+  title: string;
+  message: string;
+  link: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
 export const COIN_PACKAGES = [
   { id: "pack_500", price: 500, coins: 500, label: "500コイン", bonus: "" },
   {
