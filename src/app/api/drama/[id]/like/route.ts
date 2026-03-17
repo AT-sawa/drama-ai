@@ -117,15 +117,18 @@ export async function POST(
             .eq("id", user.id)
             .single();
           const serviceClient = createServiceRoleClient();
-          await serviceClient.from("notifications").insert({
+          const { error: notifError } = await serviceClient.from("notifications").insert({
             user_id: drama.creator_id,
             type: "like",
             title: "いいねされました",
             message: `${profile?.display_name || "ユーザー"}さんが「${drama.title}」にいいねしました`,
             link: `/drama/${dramaId}`,
           });
-        } catch {
-          // 通知失敗してもいいね自体は成功扱い
+          if (notifError) {
+            console.error("Notification insert error:", notifError);
+          }
+        } catch (notifCatchError) {
+          console.error("Notification catch error:", notifCatchError);
         }
       }
 
