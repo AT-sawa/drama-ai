@@ -513,10 +513,11 @@ export default function CreatorDashboard() {
           <p className="text-dark-muted text-xs md:text-sm">総視聴数</p>
           <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1">{stats.totalViews.toLocaleString()}</p>
         </div>
-        <div className="bg-dark-card border border-dark-border rounded-xl p-3 md:p-6 text-center md:text-left">
+        <Link href="/creator/payout" className="bg-dark-card border border-dark-border rounded-xl p-3 md:p-6 text-center md:text-left hover:border-green-500/50 transition group">
           <p className="text-dark-muted text-xs md:text-sm truncate">収益（コイン）</p>
           <p className="text-xl md:text-3xl font-bold mt-0.5 md:mt-1 text-coin">{stats.totalRevenue.toLocaleString()}</p>
-        </div>
+          <p className="text-xs text-green-400/70 group-hover:text-green-400 mt-1 hidden md:block">振込申請 →</p>
+        </Link>
       </div>
 
       {/* ====== 新規ドラマ作成モーダル ====== */}
