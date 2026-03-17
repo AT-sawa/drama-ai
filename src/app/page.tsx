@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DramaCard } from "@/components/DramaCard";
 import { Pagination } from "@/components/Pagination";
 import { WelcomeToast } from "@/components/WelcomeToast";
+import { RecommendSection } from "@/components/RecommendSection";
 import { GENRE_LABELS } from "@/lib/types";
 import type { Drama } from "@/lib/types";
 
@@ -87,6 +88,11 @@ export default async function HomePage({
           クリエイターとして自分だけの作品を作ることもできます。
         </p>
       </section>
+
+      {/* おすすめセクション */}
+      {!searchParams.genre && !searchParams.q && (
+        <RecommendSection />
+      )}
 
       {/* 検索バー */}
       <section className="mb-6">
