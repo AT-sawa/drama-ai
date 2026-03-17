@@ -160,8 +160,8 @@ export default async function DramaDetailPage({
           </p>
 
           <div className="flex flex-wrap items-center gap-3 md:gap-6 text-sm text-dark-muted">
-            <span>{drama.total_episodes} エピソード</span>
-            <span>{drama.total_views.toLocaleString()} 回視聴</span>
+            <span>{Number(drama.total_episodes).toLocaleString("en-US")} エピソード</span>
+            <span>{Number(drama.total_views).toLocaleString("en-US")}回視聴</span>
             <LikeButton
               dramaId={drama.id}
               initialLikesCount={drama.likes_count || 0}
