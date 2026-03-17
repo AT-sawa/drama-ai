@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { EpisodeList } from "@/components/EpisodeList";
 import { LikeButton } from "@/components/LikeButton";
+import { CommentSection } from "@/components/CommentSection";
 import { GENRE_LABELS } from "@/lib/types";
 import { getSiteUrl } from "@/lib/utils";
 import Image from "next/image";
@@ -228,6 +229,13 @@ export default async function DramaDetailPage({
           </div>
         )}
       </section>
+
+      {/* コメント・レビュー */}
+      <CommentSection
+        dramaId={drama.id}
+        isLoggedIn={!!user}
+        currentUserId={user?.id}
+      />
     </div>
   );
 }

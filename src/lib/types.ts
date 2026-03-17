@@ -33,6 +33,16 @@ export interface Like {
   created_at: string;
 }
 
+export interface Comment {
+  id: string;
+  user_id: string;
+  drama_id: string;
+  content: string;
+  rating: number | null;
+  created_at: string;
+  user?: Profile;
+}
+
 export interface Episode {
   id: string;
   drama_id: string;
