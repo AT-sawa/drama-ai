@@ -48,7 +48,7 @@ export function DramaCard({ drama }: { drama: Drama }) {
             </span>
           </div>
         </div>
-        <div className="p-4 pb-2">
+        <div className="p-4 pb-1">
           <h3 className="font-bold text-dark-text group-hover:text-accent transition line-clamp-1">
             {drama.title}
           </h3>
@@ -57,11 +57,11 @@ export function DramaCard({ drama }: { drama: Drama }) {
           </p>
         </div>
       </Link>
-      <div className="px-4 pb-4">
+      <div className="px-4 pb-3">
         {drama.creator && (
           <Link
             href={`/creator/${drama.creator.id}`}
-            className="flex items-center gap-1.5 mt-1 mb-2 w-fit"
+            className="flex items-center gap-1.5 mb-1.5 w-fit"
           >
             <div className="w-5 h-5 rounded-full bg-accent/30 flex items-center justify-center text-[10px] font-bold text-accent">
               {drama.creator.display_name.charAt(0).toUpperCase()}
