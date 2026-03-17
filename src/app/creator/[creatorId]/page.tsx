@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DramaCard } from "@/components/DramaCard";
+import { Pagination } from "@/components/Pagination";
 import { getSiteUrl } from "@/lib/utils";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -7,6 +8,8 @@ import type { Metadata } from "next";
 import type { Drama, Profile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+const ITEMS_PER_PAGE = 12;
 
 export async function generateMetadata({
   params,
@@ -57,10 +60,14 @@ export async function generateMetadata({
 
 export default async function CreatorPublicPage({
   params,
+  searchParams,
 }: {
   params: { creatorId: string };
+  searchParams: { page?: string };
 }) {
   const supabase = createServerSupabaseClient();
+  const currentPage = Math.max(1, parseInt(searchParams.page || "1", 10) || 1);
+  const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
   // クリエイター情報取得
   const { data: creator } = await supabase
@@ -72,17 +79,39 @@ export default async function CreatorPublicPage({
 
   if (!creator) notFound();
 
-  // 公開作品を取得
-  const { data: dramas } = await supabase
+  // 総件数と公開作品を取得
+  const [{ count }, { data: dramas }] = await Promise.all([
+    supabase
+      .from("dramas")
+      .select("id", { count: "exact", head: true })
+      .eq("creator_id", params.creatorId)
+      .eq("is_published", true),
+    supabase
+      .from("dramas")
+      .select("*")
+      .eq("creator_id", params.creatorId)
+      .eq("is_published", true)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + ITEMS_PER_PAGE - 1),
+  ]);
+
+  const totalCount = count || 0;
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  // 統計用に全件の総視聴数も取得
+  const { data: allDramas } = await supabase
     .from("dramas")
-    .select("*")
+    .select("total_views")
     .eq("creator_id", params.creatorId)
-    .eq("is_published", true)
-    .order("created_at", { ascending: false });
+    .eq("is_published", true);
 
   const totalViews =
-    dramas?.reduce((sum: number, d: Drama) => sum + d.total_views, 0) || 0;
-  const totalDramas = dramas?.length || 0;
+    allDramas?.reduce((sum: number, d: { total_views: number }) => sum + d.total_views, 0) || 0;
+
+  function buildPageUrl(page: number) {
+    if (page <= 1) return `/creator/${params.creatorId}`;
+    return `/creator/${params.creatorId}?page=${page}`;
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -112,7 +141,7 @@ export default async function CreatorPublicPage({
                       d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                     />
                   </svg>
-                  {totalDramas} 作品
+                  {totalCount} 作品
                 </span>
                 <span className="flex items-center gap-1">
                   <svg
@@ -147,16 +176,31 @@ export default async function CreatorPublicPage({
         <h2 className="text-xl font-bold mb-6">
           公開作品
           <span className="text-dark-muted text-sm font-normal ml-2">
-            ({totalDramas}件)
+            ({totalCount}件)
           </span>
         </h2>
 
         {dramas && dramas.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dramas.map((drama: Drama) => (
-              <DramaCard key={drama.id} drama={drama} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {dramas.map((drama: Drama) => (
+                <DramaCard key={drama.id} drama={drama} />
+              ))}
+            </div>
+
+            {/* ページネーション */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              buildUrl={buildPageUrl}
+            />
+
+            {totalPages > 1 && (
+              <p className="text-center text-xs text-dark-muted/50 mt-3">
+                {totalCount}件中 {offset + 1}〜{Math.min(offset + ITEMS_PER_PAGE, totalCount)}件を表示
+              </p>
+            )}
+          </>
         ) : (
           <div className="text-center py-16">
             <svg

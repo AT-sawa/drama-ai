@@ -1,42 +1,72 @@
 import { Suspense } from "react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DramaCard } from "@/components/DramaCard";
+import { Pagination } from "@/components/Pagination";
 import { WelcomeToast } from "@/components/WelcomeToast";
 import { GENRE_LABELS } from "@/lib/types";
 import type { Drama } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+const ITEMS_PER_PAGE = 12;
+
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: { genre?: string; q?: string };
+  searchParams: { genre?: string; q?: string; page?: string };
 }) {
   const supabase = createServerSupabaseClient();
+  const currentPage = Math.max(1, parseInt(searchParams.page || "1", 10) || 1);
+  const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
+  // 総件数取得用クエリ
+  let countQuery = supabase
+    .from("dramas")
+    .select("id", { count: "exact", head: true })
+    .eq("is_published", true);
+
+  // データ取得用クエリ
   let query = supabase
     .from("dramas")
     .select("*, creator:profiles(id, display_name)")
     .eq("is_published", true)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + ITEMS_PER_PAGE - 1);
 
   if (searchParams.genre) {
+    countQuery = countQuery.eq("genre", searchParams.genre);
     query = query.eq("genre", searchParams.genre);
   }
 
   if (searchParams.q) {
     const keyword = searchParams.q.trim();
-    query = query.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%`);
+    const filter = `title.ilike.%${keyword}%,description.ilike.%${keyword}%`;
+    countQuery = countQuery.or(filter);
+    query = query.or(filter);
   }
 
-  const { data: dramas } = await query;
+  const [{ count }, { data: dramas }] = await Promise.all([
+    countQuery,
+    query,
+  ]);
 
-  // ジャンルフィルターのURL構築
+  const totalCount = count || 0;
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  // URL構築ヘルパー
   function buildUrl(params: Record<string, string | undefined>) {
     const p = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => { if (v) p.set(k, v); });
     const s = p.toString();
     return s ? `/?${s}` : "/";
+  }
+
+  function buildPageUrl(page: number) {
+    return buildUrl({
+      genre: searchParams.genre,
+      q: searchParams.q,
+      page: page > 1 ? String(page) : undefined,
+    });
   }
 
   return (
@@ -127,18 +157,34 @@ export default async function HomePage({
       {/* 検索結果表示 */}
       {searchParams.q && (
         <div className="mb-4 text-sm text-dark-muted text-center">
-          「{searchParams.q}」の検索結果: {dramas?.length || 0}件
+          「{searchParams.q}」の検索結果: {totalCount}件
         </div>
       )}
 
       {/* ドラマ一覧 */}
       <section>
         {dramas && dramas.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {dramas.map((drama: Drama) => (
-              <DramaCard key={drama.id} drama={drama} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {dramas.map((drama: Drama) => (
+                <DramaCard key={drama.id} drama={drama} />
+              ))}
+            </div>
+
+            {/* ページネーション */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              buildUrl={buildPageUrl}
+            />
+
+            {/* 件数情報 */}
+            {totalPages > 1 && (
+              <p className="text-center text-xs text-dark-muted/50 mt-3">
+                {totalCount}件中 {offset + 1}〜{Math.min(offset + ITEMS_PER_PAGE, totalCount)}件を表示
+              </p>
+            )}
+          </>
         ) : (
           <div className="text-center py-20">
             <svg
