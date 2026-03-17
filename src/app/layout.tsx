@@ -53,39 +53,54 @@ export default function RootLayout({
       <body className={inter.className}>
         <Header />
         <main className="min-h-[calc(100vh-4rem)]">{children}</main>
-        <footer className="border-t border-dark-border py-8 text-center text-sm text-dark-muted">
+        <footer className="border-t border-dark-border bg-dark-card/30 pt-10 pb-6 text-sm text-dark-muted">
           <div className="max-w-7xl mx-auto px-4">
-            <p className="text-gradient font-bold text-lg mb-3">DramaAI</p>
-            <div className="flex items-center justify-center gap-4 mb-3 flex-wrap">
-              <Link
-                href="/terms"
-                className="hover:text-dark-text transition"
-              >
-                利用規約
-              </Link>
-              <span className="text-dark-border">|</span>
-              <Link
-                href="/privacy"
-                className="hover:text-dark-text transition"
-              >
-                プライバシーポリシー
-              </Link>
-              <span className="text-dark-border">|</span>
-              <Link
-                href="/tokushoho"
-                className="hover:text-dark-text transition"
-              >
-                特定商取引法に基づく表記
-              </Link>
-              <span className="text-dark-border">|</span>
-              <Link
-                href="/contact"
-                className="hover:text-dark-text transition"
-              >
-                お問い合わせ
-              </Link>
+            {/* フッターグリッド */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+              {/* ブランド */}
+              <div className="col-span-2 md:col-span-1">
+                <p className="text-gradient font-bold text-xl mb-2">DramaAI</p>
+                <p className="text-dark-muted/80 text-xs leading-relaxed">
+                  AIが生成するオリジナルドラマを楽しもう。クリエイターとして自分だけの作品を作ることもできます。
+                </p>
+              </div>
+
+              {/* サービス */}
+              <div>
+                <h3 className="text-dark-text font-semibold mb-3 text-xs uppercase tracking-wider">サービス</h3>
+                <ul className="space-y-2">
+                  <li><Link href="/" className="hover:text-dark-text transition">作品を探す</Link></li>
+                  <li><Link href="/creator" className="hover:text-dark-text transition">クリエイター</Link></li>
+                  <li><Link href="/coins" className="hover:text-dark-text transition">コイン購入</Link></li>
+                </ul>
+              </div>
+
+              {/* アカウント */}
+              <div>
+                <h3 className="text-dark-text font-semibold mb-3 text-xs uppercase tracking-wider">アカウント</h3>
+                <ul className="space-y-2">
+                  <li><Link href="/login" className="hover:text-dark-text transition">ログイン</Link></li>
+                  <li><Link href="/register" className="hover:text-dark-text transition">新規登録</Link></li>
+                  <li><Link href="/profile" className="hover:text-dark-text transition">プロフィール</Link></li>
+                </ul>
+              </div>
+
+              {/* 法的情報 */}
+              <div>
+                <h3 className="text-dark-text font-semibold mb-3 text-xs uppercase tracking-wider">法的情報</h3>
+                <ul className="space-y-2">
+                  <li><Link href="/terms" className="hover:text-dark-text transition">利用規約</Link></li>
+                  <li><Link href="/privacy" className="hover:text-dark-text transition">プライバシーポリシー</Link></li>
+                  <li><Link href="/tokushoho" className="hover:text-dark-text transition">特定商取引法に基づく表記</Link></li>
+                  <li><Link href="/contact" className="hover:text-dark-text transition">お問い合わせ</Link></li>
+                </ul>
+              </div>
             </div>
-            <p>&copy; 2026 DramaAI. All rights reserved.</p>
+
+            {/* コピーライト */}
+            <div className="border-t border-dark-border pt-5 text-center text-xs text-dark-muted/60">
+              <p>&copy; 2026 DramaAI. All rights reserved.</p>
+            </div>
           </div>
         </footer>
       </body>
