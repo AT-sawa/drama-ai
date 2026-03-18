@@ -359,9 +359,16 @@ export default function CreatorDashboard() {
         ...prev,
         [dramaId]: (prev[dramaId] || []).filter((e) => e.id !== deletingEpisode.id),
       }));
-      // total_episodes を更新
+      // total_episodes をDBの実カウントで更新
+      const { count } = await supabase
+        .from("episodes")
+        .select("id", { count: "exact", head: true })
+        .eq("drama_id", dramaId)
+        .eq("is_published", true);
+      const newCount = count || 0;
+      await supabase.from("dramas").update({ total_episodes: newCount }).eq("id", dramaId);
       setDramas(dramas.map((d) =>
-        d.id === dramaId ? { ...d, total_episodes: Math.max(0, d.total_episodes - 1) } : d
+        d.id === dramaId ? { ...d, total_episodes: newCount } : d
       ));
       setDeletingEpisode(null);
     }

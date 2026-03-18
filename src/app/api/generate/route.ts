@@ -203,10 +203,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ドラマのエピソード数更新
+    // ドラマのエピソード数を実際の公開数で更新
+    const { count: epCount } = await supabase
+      .from("episodes")
+      .select("id", { count: "exact", head: true })
+      .eq("drama_id", drama_id)
+      .eq("is_published", true);
+
     await supabase
       .from("dramas")
-      .update({ total_episodes: episode_number })
+      .update({ total_episodes: epCount || 0 })
       .eq("id", drama_id);
 
     return NextResponse.json({
