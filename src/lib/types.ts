@@ -5,6 +5,7 @@ export interface Profile {
   avatar_url: string | null;
   coin_balance: number;
   is_creator: boolean;
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 }

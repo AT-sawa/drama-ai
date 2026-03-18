@@ -96,6 +96,11 @@ export function Header() {
                         クリエイターダッシュボード
                       </Link>
                     )}
+                    {profile.is_admin && (
+                      <Link href="/admin" className="block px-4 py-2 text-sm text-red-400 hover:bg-dark-border/50 transition" onClick={closeAll}>
+                        🛡️ 管理者ダッシュボード
+                      </Link>
+                    )}
                     <button
                       onClick={handleLogout}
                       className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-dark-border/50 transition"
@@ -181,6 +186,11 @@ export function Header() {
                 {profile.is_creator && (
                   <Link href="/creator" className="block px-3 py-3 rounded-lg text-sm hover:bg-dark-border/50 transition" onClick={closeAll}>
                     🎬 クリエイターダッシュボード
+                  </Link>
+                )}
+                {profile.is_admin && (
+                  <Link href="/admin" className="block px-3 py-3 rounded-lg text-sm text-red-400 hover:bg-dark-border/50 transition" onClick={closeAll}>
+                    🛡️ 管理者ダッシュボード
                   </Link>
                 )}
                 <button
