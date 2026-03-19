@@ -10,12 +10,11 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="108" fill="url(#bg)"/>
-  <!-- Play triangle -->
-  <path d="M195 148 L195 364 L370 256 Z" fill="url(#accent)" opacity="0.95"/>
-  <!-- AI sparkle dots -->
-  <circle cx="135" cy="120" r="12" fill="#ff6b35" opacity="0.6"/>
-  <circle cx="390" cy="105" r="8" fill="#ff9a5c" opacity="0.5"/>
-  <circle cx="410" cy="380" r="10" fill="#ff6b35" opacity="0.4"/>
-  <!-- Bottom text "AI" -->
-  <text x="256" y="445" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="72" fill="#ff6b35" opacity="0.8">AI</text>
+  <!-- Play triangle (centered) -->
+  <path d="M190 136 L190 376 L385 256 Z" fill="url(#accent)" opacity="0.95"/>
+  <!-- Sparkle dots -->
+  <circle cx="120" cy="110" r="14" fill="#ff6b35" opacity="0.6"/>
+  <circle cx="400" cy="100" r="9" fill="#ff9a5c" opacity="0.5"/>
+  <circle cx="415" cy="390" r="11" fill="#ff6b35" opacity="0.45"/>
+  <circle cx="105" cy="400" r="7" fill="#ff9a5c" opacity="0.35"/>
 </svg>
