@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatNumber } from "@/lib/utils";
 import Link from "next/link";
 
-type Tab = "overview" | "users" | "dramas" | "payouts";
+type Tab = "overview" | "users" | "dramas" | "payouts" | "applications";
 
 interface AdminStats {
   totalUsers: number;
@@ -90,6 +90,10 @@ export default function AdminDashboard() {
   const [processingPayout, setProcessingPayout] = useState<string | null>(null);
   const [adminNote, setAdminNote] = useState("");
 
+  // Creator Applications
+  const [applications, setApplications] = useState<any[]>([]);
+  const [appProcessing, setAppProcessing] = useState<string | null>(null);
+
   useEffect(() => {
     checkAdmin();
   }, []);
@@ -100,6 +104,7 @@ export default function AdminDashboard() {
     if (tab === "users") fetchUsers();
     if (tab === "dramas") fetchDramas();
     if (tab === "payouts") fetchPayouts();
+    if (tab === "applications") fetchApplications();
   }, [tab, isAdmin, usersPage, userSearch, dramasPage, dramaSearch, dramaFilter, payoutFilter]);
 
   async function checkAdmin() {
@@ -181,6 +186,25 @@ export default function AdminDashboard() {
     if (res.ok) fetchDramas();
   }
 
+  async function fetchApplications() {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, display_name, email, creator_status, creator_motivation, created_at")
+      .eq("creator_status", "pending")
+      .order("created_at", { ascending: false });
+    setApplications(data || []);
+  }
+
+  async function handleApplication(userId: string, approve: boolean) {
+    setAppProcessing(userId);
+    const updates = approve
+      ? { is_creator: true, creator_status: "approved" }
+      : { creator_status: "rejected" };
+    const { error } = await supabase.from("profiles").update(updates).eq("id", userId);
+    if (!error) fetchApplications();
+    setAppProcessing(null);
+  }
+
   async function updatePayoutStatus(payoutId: string, status: string) {
     const res = await fetch("/api/admin/payouts", {
       method: "PATCH",
@@ -207,6 +231,7 @@ export default function AdminDashboard() {
     { id: "users", label: "ユーザー管理", icon: "👥" },
     { id: "dramas", label: "コンテンツ管理", icon: "🎬" },
     { id: "payouts", label: "振込管理", icon: "💰" },
+    { id: "applications", label: "クリエイター申請", icon: "📝" },
   ];
 
   return (
@@ -667,6 +692,55 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+      {/* クリエイター申請タブ */}
+      {tab === "applications" && (
+        <div>
+          <h2 className="text-xl font-bold mb-4">クリエイター申請一覧</h2>
+          {applications.length === 0 ? (
+            <div className="text-center py-12 text-dark-muted">
+              <p>保留中の申請はありません</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {applications.map((app) => (
+                <div key={app.id} className="bg-dark-card border border-dark-border rounded-xl p-5">
+                  <div className="flex flex-col md:flex-row md:items-start gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-medium">{app.display_name}</span>
+                        <span className="text-xs text-dark-muted">{app.email}</span>
+                      </div>
+                      <div className="bg-dark-bg border border-dark-border rounded-lg p-3 text-sm text-dark-muted">
+                        <p className="text-xs text-dark-muted/60 mb-1">申請理由:</p>
+                        {app.creator_motivation || "（理由なし）"}
+                      </div>
+                      <p className="text-xs text-dark-muted mt-2">
+                        登録日: {new Date(app.created_at).toLocaleDateString("ja-JP")}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleApplication(app.id, true)}
+                        disabled={appProcessing === app.id}
+                        className="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 transition"
+                      >
+                        承認
+                      </button>
+                      <button
+                        onClick={() => handleApplication(app.id, false)}
+                        disabled={appProcessing === app.id}
+                        className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 disabled:opacity-50 transition"
+                      >
+                        却下
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { CookieConsent } from "@/components/CookieConsent";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { getSiteUrl } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -13,6 +14,12 @@ const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "DramaAI",
+  },
   title: {
     default: "DramaAI - AI動画配信サービス",
     template: "%s | DramaAI",
@@ -54,9 +61,16 @@ export default function RootLayout({
     <html lang="ja">
       <body className={inter.className}>
         <GoogleAnalytics />
+        {/* スキップリンク（アクセシビリティ） */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:bg-accent focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm"
+        >
+          メインコンテンツにスキップ
+        </a>
         <Header />
-        <main className="min-h-[calc(100vh-4rem)]">{children}</main>
-        <footer className="border-t border-dark-border bg-dark-card/30 pt-10 pb-6 text-sm text-dark-muted">
+        <main id="main-content" role="main" className="min-h-[calc(100vh-4rem)]" tabIndex={-1}>{children}</main>
+        <footer role="contentinfo" className="border-t border-dark-border bg-dark-card/30 pt-10 pb-6 text-sm text-dark-muted">
           <div className="max-w-7xl mx-auto px-4">
             {/* フッターグリッド */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
@@ -107,6 +121,7 @@ export default function RootLayout({
           </div>
         </footer>
         <CookieConsent />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

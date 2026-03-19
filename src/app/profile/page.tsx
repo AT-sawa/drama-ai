@@ -14,6 +14,11 @@ export default function ProfilePage() {
   const [emailNotify, setEmailNotify] = useState(true);
   const [savingNotify, setSavingNotify] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isCreator, setIsCreator] = useState(false);
+  const [creatorStatus, setCreatorStatus] = useState<string | null>(null);
+  const [motivation, setMotivation] = useState("");
+  const [applyMsg, setApplyMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [applyLoading, setApplyLoading] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -39,13 +44,15 @@ export default function ProfilePage() {
       }
       const { data } = await supabase
         .from("profiles")
-        .select("display_name, email, email_notify")
+        .select("display_name, email, email_notify, is_creator, creator_status")
         .eq("id", user.id)
         .single();
       if (data) {
         setDisplayName(data.display_name);
         setEmail(data.email);
         setEmailNotify(data.email_notify !== false);
+        setIsCreator(data.is_creator || false);
+        setCreatorStatus(data.creator_status || null);
       }
       setLoading(false);
     }
@@ -230,6 +237,65 @@ export default function ProfilePage() {
             {savingPass ? "更新中..." : "パスワードを変更"}
           </button>
         </form>
+
+        {/* クリエイター申請 */}
+        {!isCreator && (
+          <div className="bg-dark-card border border-dark-border rounded-xl p-6 space-y-4">
+            <h2 className="text-lg font-semibold">クリエイター申請</h2>
+            {creatorStatus === "pending" ? (
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm text-yellow-400">
+                申請は現在審査中です。承認されるまでお待ちください。
+              </div>
+            ) : creatorStatus === "rejected" ? (
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+                申請は承認されませんでした。内容を見直して再度お申し込みください。
+              </div>
+            ) : null}
+            {applyMsg && (
+              <div className={`p-3 rounded-lg text-sm ${applyMsg.type === "success" ? "bg-green-500/10 border border-green-500/30 text-green-400" : "bg-red-500/10 border border-red-500/30 text-red-400"}`}>
+                {applyMsg.text}
+              </div>
+            )}
+            {creatorStatus !== "pending" && (
+              <>
+                <p className="text-sm text-dark-muted">
+                  クリエイターになるとAI動画を生成してドラマを制作・公開できます。
+                </p>
+                <textarea
+                  value={motivation}
+                  onChange={(e) => setMotivation(e.target.value)}
+                  placeholder="クリエイターとしてやりたいこと・制作したい作品について教えてください（10文字以上）"
+                  maxLength={500}
+                  rows={3}
+                  className="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-dark-text placeholder-dark-muted/50 focus:outline-none focus:border-accent resize-none"
+                />
+                <button
+                  onClick={async () => {
+                    setApplyLoading(true);
+                    setApplyMsg(null);
+                    const res = await fetch("/api/creator/apply", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ motivation }),
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      setApplyMsg({ type: "success", text: "申請を受け付けました。審査結果をお待ちください。" });
+                      setCreatorStatus("pending");
+                    } else {
+                      setApplyMsg({ type: "error", text: data.error || "申請に失敗しました" });
+                    }
+                    setApplyLoading(false);
+                  }}
+                  disabled={applyLoading || motivation.length < 10}
+                  className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-lg transition"
+                >
+                  {applyLoading ? "送信中..." : "クリエイター申請"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* 通知設定 */}
         <div className="bg-dark-card border border-dark-border rounded-xl p-6 space-y-4">

@@ -4,6 +4,7 @@ import { DramaCard } from "@/components/DramaCard";
 import { Pagination } from "@/components/Pagination";
 import { WelcomeToast } from "@/components/WelcomeToast";
 import { RecommendSection } from "@/components/RecommendSection";
+import { OnboardingModal } from "@/components/OnboardingModal";
 import { GENRE_LABELS } from "@/lib/types";
 import type { Drama } from "@/lib/types";
 
@@ -75,6 +76,7 @@ export default async function HomePage({
       <Suspense fallback={null}>
         <WelcomeToast />
       </Suspense>
+      <OnboardingModal />
 
       {/* ヒーローセクション */}
       <section className="mb-12 text-center">
