@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { Header } from "@/components/Header";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { CookieConsent } from "@/components/CookieConsent";
 import { getSiteUrl } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -51,6 +53,7 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className={inter.className}>
+        <GoogleAnalytics />
         <Header />
         <main className="min-h-[calc(100vh-4rem)]">{children}</main>
         <footer className="border-t border-dark-border bg-dark-card/30 pt-10 pb-6 text-sm text-dark-muted">
@@ -103,6 +106,7 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
+        <CookieConsent />
       </body>
     </html>
   );

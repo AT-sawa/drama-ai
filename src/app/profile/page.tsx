@@ -11,6 +11,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailNotify, setEmailNotify] = useState(true);
+  const [savingNotify, setSavingNotify] = useState(false);
+  const [notifyMsg, setNotifyMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -36,12 +39,13 @@ export default function ProfilePage() {
       }
       const { data } = await supabase
         .from("profiles")
-        .select("display_name, email")
+        .select("display_name, email, email_notify")
         .eq("id", user.id)
         .single();
       if (data) {
         setDisplayName(data.display_name);
         setEmail(data.email);
+        setEmailNotify(data.email_notify !== false);
       }
       setLoading(false);
     }
@@ -226,6 +230,44 @@ export default function ProfilePage() {
             {savingPass ? "更新中..." : "パスワードを変更"}
           </button>
         </form>
+
+        {/* 通知設定 */}
+        <div className="bg-dark-card border border-dark-border rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold">通知設定</h2>
+          {notifyMsg && (
+            <div className={`p-3 rounded-lg text-sm ${notifyMsg.type === "success" ? "bg-green-500/10 border border-green-500/30 text-green-400" : "bg-red-500/10 border border-red-500/30 text-red-400"}`}>
+              {notifyMsg.text}
+            </div>
+          )}
+          <label className="flex items-center justify-between cursor-pointer group">
+            <div>
+              <p className="text-sm font-medium">メール通知</p>
+              <p className="text-xs text-dark-muted">新エピソード公開、いいね、コメントの通知をメールで受け取る</p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setSavingNotify(true);
+                setNotifyMsg(null);
+                const newVal = !emailNotify;
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                const { error } = await supabase.from("profiles").update({ email_notify: newVal }).eq("id", user.id);
+                if (error) {
+                  setNotifyMsg({ type: "error", text: "更新に失敗しました" });
+                } else {
+                  setEmailNotify(newVal);
+                  setNotifyMsg({ type: "success", text: newVal ? "メール通知をONにしました" : "メール通知をOFFにしました" });
+                }
+                setSavingNotify(false);
+              }}
+              disabled={savingNotify}
+              className={`relative w-12 h-6 rounded-full transition ${emailNotify ? "bg-accent" : "bg-dark-border"}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${emailNotify ? "left-[26px]" : "left-0.5"}`} />
+            </button>
+          </label>
+        </div>
 
         {/* アカウント削除 */}
         <div className="bg-dark-card border border-red-500/30 rounded-xl p-6 space-y-4">

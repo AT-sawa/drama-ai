@@ -2,6 +2,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { EpisodeList } from "@/components/EpisodeList";
 import { LikeButton } from "@/components/LikeButton";
 import { CommentSection } from "@/components/CommentSection";
+import { ShareButtons } from "@/components/ShareButtons";
+import { ReportButton } from "@/components/ReportButton";
 import { GENRE_LABELS } from "@/lib/types";
 import { getSiteUrl, formatNumber } from "@/lib/utils";
 import Image from "next/image";
@@ -183,6 +185,20 @@ export default async function DramaDetailPage({
               </span>
             </Link>
           )}
+
+          {/* シェア・通報 */}
+          <div className="mt-4 flex items-center justify-between">
+            <ShareButtons
+              url={`${getSiteUrl()}/drama/${drama.id}`}
+              title={`${drama.title} | DramaAI`}
+              description={drama.description}
+            />
+            <ReportButton
+              targetType="drama"
+              targetId={drama.id}
+              isLoggedIn={!!user}
+            />
+          </div>
 
           {drama.tags && drama.tags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
