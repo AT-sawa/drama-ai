@@ -16,7 +16,7 @@ function truncateDescription(text: string, maxLength = 80): string {
 export function DramaCard({ drama }: { drama: Drama }) {
   return (
     <div className="group bg-dark-card border border-dark-border rounded-xl overflow-hidden hover:border-accent/50 transition-all hover:shadow-lg hover:shadow-accent/5 h-full flex flex-col">
-      <Link href={`/drama/${drama.id}`} className="block">
+      <Link href={`/drama/${drama.id}`} className="block flex-1">
         <div className="aspect-video relative bg-dark-border overflow-hidden">
           {drama.thumbnail_url ? (
             <Image
@@ -57,7 +57,7 @@ export function DramaCard({ drama }: { drama: Drama }) {
           </p>
         </div>
       </Link>
-      <div className="px-4 pb-3 mt-auto">
+      <div className="px-4 pb-3 w-full">
         {drama.creator && (
           <Link
             href={`/creator/${drama.creator.id}`}
