@@ -70,8 +70,18 @@ export default function WatchPage() {
         .eq("user_id", user.id)
         .eq("episode_id", episodeId);
 
-      if ((views && views.length > 0) || ep.is_free || ep.coin_price === 0) {
+      // クリエイター本人 or 視聴済み or 無料なら自動アクセス
+      const isOwner = dr?.creator_id === user.id;
+      if ((views && views.length > 0) || ep.is_free || ep.coin_price === 0 || isOwner) {
         setHasAccess(true);
+        // クリエイター本人の場合は視聴記録も残す（視聴回数カウント用）
+        if (isOwner && (!views || views.length === 0)) {
+          fetch("/api/watch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ episode_id: episodeId }),
+          }).catch(() => {});
+        }
       }
 
       // 音声ファイルの取得

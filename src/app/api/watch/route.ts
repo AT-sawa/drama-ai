@@ -35,8 +35,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 無料エピソードの場合
-    if (episode.is_free || episode.coin_price === 0) {
+    // クリエイター本人は無料で視聴可能
+    const { data: drama } = await supabase
+      .from("dramas")
+      .select("creator_id")
+      .eq("id", episode.drama_id)
+      .single();
+
+    const isCreatorOwner = drama?.creator_id === user.id;
+
+    // 無料エピソードまたはクリエイター本人の場合
+    if (episode.is_free || episode.coin_price === 0 || isCreatorOwner) {
       // 視聴記録だけ追加
       await supabase
         .from("views")
