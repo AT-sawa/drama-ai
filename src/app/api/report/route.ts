@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { rateLimit, getRateLimitKey } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,12 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
+    }
+
+    // レートリミット: 1分あたり5回まで
+    const rl = rateLimit(getRateLimitKey(request, "report", user.id), { windowMs: 60_000, max: 5 });
+    if (!rl.success) {
+      return NextResponse.json({ error: "リクエストが多すぎます" }, { status: 429 });
     }
 
     const { target_type, target_id, reason, detail } = await request.json();

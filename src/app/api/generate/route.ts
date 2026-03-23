@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { GENERATE_COST } from "@/lib/types";
+import { rateLimit, getRateLimitKey } from "@/lib/rate-limit";
 
 /**
  * プロンプトを強化して、Kling AIがより正確に動画を生成できるようにする
@@ -43,6 +44,16 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+    }
+
+    // レートリミット: 1分あたり3回まで
+    const rlKey = getRateLimitKey(request, "generate", user.id);
+    const rl = rateLimit(rlKey, { windowMs: 60_000, max: 3 });
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "リクエストが多すぎます。しばらくお待ちください。" },
+        { status: 429 }
+      );
     }
 
     // クリエイター確認

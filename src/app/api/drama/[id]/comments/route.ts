@@ -1,5 +1,6 @@
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, getRateLimitKey } from "@/lib/rate-limit";
 
 // コメント一覧取得
 export async function GET(
@@ -50,6 +51,12 @@ export async function POST(
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
+  }
+
+  // レートリミット: 1分あたり10回まで
+  const rl = rateLimit(getRateLimitKey(request, "comment", user.id), { windowMs: 60_000, max: 10 });
+  if (!rl.success) {
+    return NextResponse.json({ error: "コメント投稿が多すぎます。しばらくお待ちください。" }, { status: 429 });
   }
 
   const body = await request.json();
