@@ -12,7 +12,7 @@ interface Props {
 export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
   const [prompt, setPrompt] = useState("");
   const [title, setTitle] = useState(`エピソード ${episodeNumber}`);
-  const [duration, setDuration] = useState<5 | 10>(10);
+  const [duration, setDuration] = useState<5 | 10 | 15>(10);
   const [mode, setMode] = useState<"std" | "pro">("pro");
   const [enableAudio, setEnableAudio] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -179,6 +179,18 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
               >
                 10秒
               </button>
+              <button
+                type="button"
+                onClick={() => setDuration(15)}
+                disabled={loading}
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium transition ${
+                  duration === 15
+                    ? "bg-accent/20 border-accent text-accent"
+                    : "bg-dark-bg border-dark-border text-dark-muted hover:border-dark-text"
+                } disabled:opacity-50`}
+              >
+                15秒
+              </button>
             </div>
           </div>
 
@@ -246,7 +258,7 @@ export function GenerateForm({ dramaId, episodeNumber, coinBalance }: Props) {
 
         <div className="text-xs text-dark-muted bg-dark-bg/50 rounded-lg px-3 py-2">
           💡 <strong>Pro</strong>モードはプロンプトの内容をより正確に反映します。
-          <strong>10秒</strong>でより長いシーンを生成できます。
+          Kling 3.0は<strong>最大15秒</strong>の動画生成に対応しています。
           {enableAudio && (
             <>
               <br />

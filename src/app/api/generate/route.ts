@@ -94,8 +94,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // duration と mode のバリデーション
-    const validDuration = duration === 5 ? 5 : 10;
+    // duration と mode のバリデーション（Kling 3.0は最大15秒対応）
+    const validDuration = duration === 5 ? 5 : duration === 15 ? 15 : 10;
     // enable_audio はProモードでのみ利用可能
     const validEnableAudio = !!enable_audio;
     const validMode = validEnableAudio ? "pro" : (mode === "std" ? "std" : "pro");
