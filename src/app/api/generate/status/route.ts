@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
           video_url: videoUrl,
           is_published: true,
           cloudflare_video_id: cloudflareVideoId || null,
+          piapi_task_id: taskId,
         };
 
         // durationの処理: PiAPIからの値が異常に大きい場合はミリ秒とみなす

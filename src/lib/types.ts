@@ -53,6 +53,7 @@ export interface Episode {
   thumbnail_url: string | null;
   video_url: string | null;
   cloudflare_video_id: string | null;
+  piapi_task_id: string | null;
   duration: number;
   coin_price: number;
   view_count: number;

@@ -77,6 +77,12 @@ export default function CreatorDashboard() {
   const [showEpFrameCapture, setShowEpFrameCapture] = useState(false);
   const [uploadingEpThumbnail, setUploadingEpThumbnail] = useState(false);
 
+  // エピソード延長（Extend）
+  const [extendingEpisode, setExtendingEpisode] = useState<Episode | null>(null);
+  const [extendPrompt, setExtendPrompt] = useState("");
+  const [extendLoading, setExtendLoading] = useState(false);
+  const [extendStatus, setExtendStatus] = useState<string | null>(null);
+
   // エピソード音声（BGM）
   const [editingAudioEp, setEditingAudioEp] = useState<Episode | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -341,6 +347,87 @@ export default function CreatorDashboard() {
       setEditingEpisode(null);
     }
     setSavingEpisode(false);
+  }
+
+  // ====== エピソード延長（Extend） ======
+  async function handleExtendEpisode() {
+    if (!extendingEpisode) return;
+    setExtendLoading(true);
+    setExtendStatus("延長タスクを送信中...");
+
+    try {
+      const res = await fetch("/api/generate/extend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          episode_id: extendingEpisode.id,
+          prompt: extendPrompt || undefined,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setExtendStatus(`エラー: ${data.error}`);
+        setExtendLoading(false);
+        return;
+      }
+
+      const taskId = data.task_id;
+      const episodeId = extendingEpisode.id;
+      setExtendStatus("Kling AIが動画を延長中...");
+
+      // ポーリングで完了を待つ
+      let attempts = 0;
+      const maxAttempts = 120;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const statusRes = await fetch(
+            `/api/generate/status?task_id=${taskId}&episode_id=${episodeId}`
+          );
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "succeed") {
+            clearInterval(poll);
+            setExtendStatus("延長完了！動画が更新されました。");
+            // エピソードリストを更新
+            const dramaId = extendingEpisode.drama_id;
+            const { data: eps } = await supabase
+              .from("episodes")
+              .select("*")
+              .eq("drama_id", dramaId)
+              .order("episode_number", { ascending: true });
+            setDramaEpisodes((prev) => ({ ...prev, [dramaId]: eps || [] }));
+            setExtendLoading(false);
+            setTimeout(() => {
+              setExtendingEpisode(null);
+              setExtendStatus(null);
+              setExtendPrompt("");
+            }, 2000);
+          } else if (statusData.status === "failed") {
+            clearInterval(poll);
+            setExtendStatus(`延長失敗: ${statusData.error || "不明なエラー"}`);
+            setExtendLoading(false);
+          } else {
+            const min = Math.floor((attempts * 10) / 60);
+            const sec = (attempts * 10) % 60;
+            const timeStr = min > 0 ? `${min}分${sec}秒` : `${sec}秒`;
+            setExtendStatus(`Kling AIが動画を延長中... (${timeStr}経過)`);
+          }
+        } catch {
+          // ネットワークエラーは無視して再試行
+        }
+
+        if (attempts >= maxAttempts) {
+          clearInterval(poll);
+          setExtendStatus("タイムアウト: 処理に時間がかかっています。後で確認してください。");
+          setExtendLoading(false);
+        }
+      }, 10000);
+    } catch {
+      setExtendStatus("予期しないエラーが発生しました。");
+      setExtendLoading(false);
+    }
   }
 
   // ====== エピソード削除 ======
@@ -787,6 +874,60 @@ export default function CreatorDashboard() {
         </div>
       )}
 
+      {/* ====== エピソード延長モーダル ====== */}
+      {extendingEpisode && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-bg border border-dark-border rounded-xl max-w-md w-full p-6">
+            <h2 className="text-xl font-bold mb-1">動画を延長</h2>
+            <p className="text-sm text-dark-muted mb-4">
+              EP.{extendingEpisode.episode_number}「{extendingEpisode.title}」の続きを生成します（300コイン）
+            </p>
+
+            {extendStatus && (
+              <div className={`p-3 rounded-lg text-sm mb-4 ${
+                extendStatus.includes("完了") ? "bg-green-500/10 border border-green-500/30 text-green-400" :
+                extendStatus.includes("エラー") || extendStatus.includes("失敗") ? "bg-red-500/10 border border-red-500/30 text-red-400" :
+                "bg-accent/10 border border-accent/30 text-accent"
+              }`}>
+                {extendStatus}
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm text-dark-muted mb-1">
+                延長部分のプロンプト（任意）
+              </label>
+              <textarea
+                value={extendPrompt}
+                onChange={(e) => setExtendPrompt(e.target.value)}
+                placeholder="空欄の場合、元のシーンの自然な続きが生成されます"
+                rows={3}
+                maxLength={2500}
+                disabled={extendLoading}
+                className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-dark-text placeholder:text-dark-muted/50 focus:outline-none focus:border-accent resize-none disabled:opacity-50"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setExtendingEpisode(null); setExtendStatus(null); setExtendPrompt(""); }}
+                disabled={extendLoading}
+                className="flex-1 px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-sm hover:bg-dark-border/50 transition disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleExtendEpisode}
+                disabled={extendLoading}
+                className="flex-1 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 rounded-lg text-sm text-white font-medium transition"
+              >
+                {extendLoading ? "処理中..." : "延長を開始"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ====== エピソード削除確認 ====== */}
       {deletingEpisode && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -1127,6 +1268,17 @@ export default function CreatorDashboard() {
 
                             {/* エピソードアクション */}
                             <div className="flex items-center gap-1 flex-shrink-0">
+                              {ep.piapi_task_id && ep.is_published && (
+                                <button
+                                  onClick={() => { setExtendingEpisode(ep); setExtendPrompt(""); setExtendStatus(null); }}
+                                  className="p-1.5 text-accent/60 hover:text-accent hover:bg-accent/10 rounded-lg transition"
+                                  title="動画を延長"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                </button>
+                              )}
                               <button
                                 onClick={() => openAudioEdit(ep)}
                                 className={`p-1.5 rounded-lg transition ${
