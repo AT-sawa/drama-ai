@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
             cfg_scale: 0.5,
             duration: validDuration,
             aspect_ratio: "16:9",
-            version: "2.6",
+            version: "3.0",
             mode: validMode,
             ...(validEnableAudio ? { enable_audio: true } : {}),
           },
