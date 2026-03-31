@@ -10,6 +10,7 @@ import { GENRE_LABELS, GENRES } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 import { ThumbnailUpload } from "@/components/ThumbnailUpload";
 import { VideoFrameCapture } from "@/components/VideoFrameCapture";
+import { VideoUploadModal } from "@/components/VideoUploadModal";
 
 interface FrameCaptureEpisode {
   id: string;
@@ -69,6 +70,7 @@ export default function CreatorDashboard() {
   // エピソード削除確認
   const [deletingEpisode, setDeletingEpisode] = useState<Episode | null>(null);
   const [deletingEpisodeLoading, setDeletingEpisodeLoading] = useState(false);
+  const [uploadingDrama, setUploadingDrama] = useState<Drama | null>(null);
 
   // エピソードサムネイル変更
   const [editingEpThumbnail, setEditingEpThumbnail] = useState<Episode | null>(null);
@@ -1190,11 +1192,17 @@ export default function CreatorDashboard() {
                         </svg>
                       </button>
                     </div>
+                    <button
+                      onClick={() => setUploadingDrama(drama)}
+                      className="bg-green-500/10 hover:bg-green-500/20 text-green-400 px-3 md:px-4 py-2 rounded-lg transition text-xs md:text-sm font-medium whitespace-nowrap"
+                    >
+                      動画アップロード
+                    </button>
                     <Link
                       href={`/creator/generate?drama=${drama.id}`}
                       className="bg-accent/10 hover:bg-accent/20 text-accent px-3 md:px-4 py-2 rounded-lg transition text-xs md:text-sm font-medium whitespace-nowrap"
                     >
-                      エピソード追加
+                      AI生成
                     </Link>
                   </div>
                 </div>
@@ -1332,6 +1340,31 @@ export default function CreatorDashboard() {
             最初のドラマを作成しましょう
           </button>
         </div>
+      )}
+      {/* ====== 動画アップロードモーダル ====== */}
+      {uploadingDrama && (
+        <VideoUploadModal
+          dramaId={uploadingDrama.id}
+          dramaTitle={uploadingDrama.title}
+          onClose={() => setUploadingDrama(null)}
+          onSuccess={async () => {
+            // エピソード一覧をリロード
+            const { data: eps } = await supabase
+              .from("episodes")
+              .select("*")
+              .eq("drama_id", uploadingDrama.id)
+              .order("episode_number", { ascending: true });
+            if (eps) {
+              setDramaEpisodes((prev) => ({ ...prev, [uploadingDrama.id]: eps }));
+            }
+            // ドラマのエピソード数を更新
+            setDramas(dramas.map((d) =>
+              d.id === uploadingDrama.id
+                ? { ...d, total_episodes: (eps?.length || d.total_episodes) }
+                : d
+            ));
+          }}
+        />
       )}
     </div>
   );
