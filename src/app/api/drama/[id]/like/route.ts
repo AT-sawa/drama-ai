@@ -87,17 +87,12 @@ export async function POST(
       // いいね解除
       await supabase.from("likes").delete().eq("id", existingLike.id);
 
-      // likes_count をデクリメント
-      await supabase.rpc("decrement_likes_count", { p_drama_id: dramaId });
-
-      const { count } = await supabase
-        .from("likes")
-        .select("*", { count: "exact", head: true })
-        .eq("drama_id", dramaId);
+      // likes_count をデクリメントし実カウントを取得（競合状態防止）
+      const { data: newCount } = await supabase.rpc("decrement_likes_count", { p_drama_id: dramaId });
 
       return NextResponse.json({
         is_liked: false,
-        likes_count: count || 0,
+        likes_count: newCount ?? 0,
       });
     } else {
       // いいね追加
@@ -105,8 +100,8 @@ export async function POST(
         .from("likes")
         .insert({ user_id: user.id, drama_id: dramaId });
 
-      // likes_count をインクリメント
-      await supabase.rpc("increment_likes_count", { p_drama_id: dramaId });
+      // likes_count をインクリメントし実カウントを取得（競合状態防止）
+      const { data: newCount } = await supabase.rpc("increment_likes_count", { p_drama_id: dramaId });
 
       // 作者に通知（自分自身へのいいねは通知しない）
       if (drama.creator_id && drama.creator_id !== user.id) {
@@ -132,14 +127,9 @@ export async function POST(
         }
       }
 
-      const { count } = await supabase
-        .from("likes")
-        .select("*", { count: "exact", head: true })
-        .eq("drama_id", dramaId);
-
       return NextResponse.json({
         is_liked: true,
-        likes_count: count || 0,
+        likes_count: newCount ?? 0,
       });
     }
   } catch (error) {

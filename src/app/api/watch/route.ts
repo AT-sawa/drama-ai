@@ -44,6 +44,23 @@ export async function POST(request: NextRequest) {
 
     const isCreatorOwner = drama?.creator_id === user.id;
 
+    // 視聴済みチェック（二重消費防止）
+    const { data: existingView } = await supabase
+      .from("views")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("episode_id", episode_id)
+      .single();
+
+    if (existingView) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("coin_balance")
+        .eq("id", user.id)
+        .single();
+      return NextResponse.json({ balance: profile?.coin_balance || 0 });
+    }
+
     // 無料エピソードまたはクリエイター本人の場合
     if (episode.is_free || episode.coin_price === 0 || isCreatorOwner) {
       // 視聴記録だけ追加

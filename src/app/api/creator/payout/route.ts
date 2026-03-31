@@ -140,6 +140,13 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    // ユニーク制約違反 = 既にpending申請がある
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "処理中の振込申請があります。完了後に再度お申し込みください" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

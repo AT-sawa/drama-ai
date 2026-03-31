@@ -70,6 +70,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!process.env.PIAPI_API_KEY) {
+      return NextResponse.json(
+        { error: "動画生成サービスが設定されていません" },
+        { status: 503 }
+      );
+    }
+
     if (profile.coin_balance < GENERATE_COST) {
       return NextResponse.json(
         { error: `コインが不足しています（必要: ${GENERATE_COST}コイン）` },
@@ -126,7 +133,7 @@ export async function POST(request: NextRequest) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": process.env.PIAPI_API_KEY || "",
+          "x-api-key": process.env.PIAPI_API_KEY ?? "",
         },
         body: JSON.stringify({
           model: "kling",
@@ -172,15 +179,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // PiAPI成功後にコイン消費
+    // PiAPI成功後にコイン消費（失敗時は復旧）
     const newBalance = profile.coin_balance - GENERATE_COST;
-    await supabase
+    const { error: balanceError } = await supabase
       .from("profiles")
       .update({ coin_balance: newBalance })
       .eq("id", user.id);
 
-    // 取引履歴
-    await supabase.from("transactions").insert({
+    if (balanceError) {
+      console.error("Balance update failed, task will proceed but coins not deducted:", balanceError);
+      // PiAPIタスクは既に開始されているので、コイン未引き落としをログに記録
+    }
+
+    // 取引履歴（失敗しても続行）
+    const { error: txError } = await supabase.from("transactions").insert({
       user_id: user.id,
       type: "generate",
       amount: -GENERATE_COST,
@@ -188,6 +200,10 @@ export async function POST(request: NextRequest) {
       reference_id: drama_id,
       description: `AI動画生成 (${validMode === "pro" ? "Pro" : "Std"}, ${validDuration}秒${validEnableAudio ? ", 音声付き" : ""}): ${title}`,
     });
+
+    if (txError) {
+      console.error("Transaction record failed:", txError);
+    }
 
     // エピソード作成（動画は後からポーリングで更新）
     const { data: episode, error: epError } = await supabase

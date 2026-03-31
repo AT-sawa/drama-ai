@@ -14,13 +14,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET is not configured");
+    return NextResponse.json(
+      { error: "Server misconfigured" },
+      { status: 500 }
+    );
+  }
+
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
+    event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
   } catch (err) {
     console.error("Webhook signature verification failed:", err);
     return NextResponse.json(
@@ -34,17 +39,31 @@ export async function POST(request: NextRequest) {
     const { purchase_id, user_id, coin_amount } = session.metadata || {};
 
     if (!purchase_id || !user_id || !coin_amount) {
-      console.error("Missing metadata in Stripe session");
-      return NextResponse.json({ received: true });
+      console.error("Missing metadata in Stripe session:", {
+        session_id: session.id,
+        purchase_id,
+        user_id,
+        coin_amount,
+      });
+      // 400を返してStripeにリトライさせる
+      return NextResponse.json(
+        { error: "Missing required metadata" },
+        { status: 400 }
+      );
     }
 
     const supabase = createServiceRoleClient();
 
-    // 購入ステータスを完了に
-    await supabase
+    // 冪等性チェック: 既に完了済みの購入は再処理しない
+    const { data: existingPurchase } = await supabase
       .from("purchases")
-      .update({ status: "completed" })
-      .eq("id", purchase_id);
+      .select("status")
+      .eq("id", purchase_id)
+      .single();
+
+    if (existingPurchase?.status === "completed") {
+      return NextResponse.json({ received: true });
+    }
 
     // コイン追加（DB関数で処理）
     const { error } = await supabase.rpc("add_coins", {
@@ -54,8 +73,24 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error("Failed to add coins:", error);
+      console.error("Failed to add coins:", {
+        error,
+        purchase_id,
+        user_id,
+        coin_amount,
+      });
+      // 500を返してStripeにリトライさせる
+      return NextResponse.json(
+        { error: "Failed to add coins" },
+        { status: 500 }
+      );
     }
+
+    // コイン追加成功後に購入ステータスを完了に
+    await supabase
+      .from("purchases")
+      .update({ status: "completed" })
+      .eq("id", purchase_id);
   }
 
   return NextResponse.json({ received: true });
