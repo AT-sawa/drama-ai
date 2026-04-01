@@ -81,9 +81,12 @@ export default function CreatorDashboard() {
 
   // エピソード延長（Extend）
   const [extendingEpisode, setExtendingEpisode] = useState<Episode | null>(null);
+  const [extendMode, setExtendMode] = useState<"select" | "ai" | "upload">("select");
   const [extendPrompt, setExtendPrompt] = useState("");
   const [extendLoading, setExtendLoading] = useState(false);
   const [extendStatus, setExtendStatus] = useState<string | null>(null);
+  const [extendFile, setExtendFile] = useState<File | null>(null);
+  const [extendUploading, setExtendUploading] = useState(false);
 
   // エピソード音声（BGM）
   const [editingAudioEp, setEditingAudioEp] = useState<Episode | null>(null);
@@ -880,12 +883,9 @@ export default function CreatorDashboard() {
       {extendingEpisode && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-dark-bg border border-dark-border rounded-xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold mb-1">動画を延長</h2>
+            <h2 className="text-xl font-bold mb-1">動画を延長・差し替え</h2>
             <p className="text-sm text-dark-muted mb-4">
-              EP.{extendingEpisode.episode_number}「{extendingEpisode.title}」の続きを生成します
-              {extendingEpisode.source === "upload"
-                ? "（テスト中: 無料）"
-                : "（300コイン）"}
+              EP.{extendingEpisode.episode_number}「{extendingEpisode.title}」
             </p>
 
             {extendStatus && (
@@ -898,37 +898,193 @@ export default function CreatorDashboard() {
               </div>
             )}
 
-            <div className="mb-4">
-              <label className="block text-sm text-dark-muted mb-1">
-                延長部分のプロンプト（任意）
-              </label>
-              <textarea
-                value={extendPrompt}
-                onChange={(e) => setExtendPrompt(e.target.value)}
-                placeholder="空欄の場合、元のシーンの自然な続きが生成されます"
-                rows={3}
-                maxLength={2500}
-                disabled={extendLoading}
-                className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-dark-text placeholder:text-dark-muted/50 focus:outline-none focus:border-accent resize-none disabled:opacity-50"
-              />
-            </div>
+            {/* ステップ1: モード選択 */}
+            {extendMode === "select" && !extendLoading && (
+              <div className="space-y-3 mb-4">
+                <button
+                  onClick={() => setExtendMode("ai")}
+                  className="w-full p-4 bg-dark-card border border-dark-border rounded-xl text-left hover:border-accent/50 transition group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-dark-text group-hover:text-accent transition">AI延長</p>
+                      <p className="text-xs text-dark-muted mt-0.5">
+                        Kling AIが自動で続きを生成
+                        <span className="text-accent ml-1">
+                          {extendingEpisode.source === "upload" ? "（無料）" : "（300コイン）"}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </button>
 
-            <div className="flex gap-3">
+                <button
+                  onClick={() => setExtendMode("upload")}
+                  className="w-full p-4 bg-dark-card border border-dark-border rounded-xl text-left hover:border-green-500/50 transition group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-dark-text group-hover:text-green-400 transition">手動アップロード</p>
+                      <p className="text-xs text-dark-muted mt-0.5">
+                        自分の動画ファイルで差し替え
+                        <span className="text-green-400 ml-1">（無料）</span>
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* ステップ2a: AI延長 */}
+            {extendMode === "ai" && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm text-dark-muted mb-1">
+                    延長部分のプロンプト（任意）
+                  </label>
+                  <textarea
+                    value={extendPrompt}
+                    onChange={(e) => setExtendPrompt(e.target.value)}
+                    placeholder="空欄の場合、元のシーンの自然な続きが生成されます"
+                    rows={3}
+                    maxLength={2500}
+                    disabled={extendLoading}
+                    className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-dark-text placeholder:text-dark-muted/50 focus:outline-none focus:border-accent resize-none disabled:opacity-50"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => extendLoading ? null : setExtendMode("select")}
+                    disabled={extendLoading}
+                    className="flex-1 px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-sm hover:bg-dark-border/50 transition disabled:opacity-50"
+                  >
+                    戻る
+                  </button>
+                  <button
+                    onClick={handleExtendEpisode}
+                    disabled={extendLoading}
+                    className="flex-1 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 rounded-lg text-sm text-white font-medium transition"
+                  >
+                    {extendLoading ? "処理中..." : "AI延長を開始"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ステップ2b: 手動アップロード */}
+            {extendMode === "upload" && (
+              <>
+                <div className="mb-4">
+                  <input
+                    type="file"
+                    id="extend-upload-input"
+                    accept="video/mp4,video/quicktime,.mp4,.mov"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        if (f.size > 500 * 1024 * 1024) {
+                          setExtendStatus("エラー: ファイルサイズは500MB以下にしてください");
+                          return;
+                        }
+                        setExtendFile(f);
+                        setExtendStatus(null);
+                      }
+                    }}
+                    className="hidden"
+                    disabled={extendUploading}
+                  />
+                  {extendFile ? (
+                    <div className="border border-dark-border rounded-lg p-3 flex items-center gap-3">
+                      <svg className="w-8 h-8 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-dark-text truncate">{extendFile.name}</p>
+                        <p className="text-xs text-dark-muted">{(extendFile.size / (1024 * 1024)).toFixed(1)} MB</p>
+                      </div>
+                      <button
+                        onClick={() => { setExtendFile(null); const el = document.getElementById("extend-upload-input") as HTMLInputElement; if (el) el.value = ""; }}
+                        disabled={extendUploading}
+                        className="text-dark-muted hover:text-red-400 transition"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => document.getElementById("extend-upload-input")?.click()}
+                      className="w-full border-2 border-dashed border-dark-border rounded-lg p-6 text-center hover:border-green-500/50 transition group"
+                    >
+                      <svg className="w-8 h-8 mx-auto text-dark-muted group-hover:text-green-400 transition mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <p className="text-xs text-dark-muted">MP4, MOV / 最大500MB</p>
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => extendUploading ? null : setExtendMode("select")}
+                    disabled={extendUploading}
+                    className="flex-1 px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-sm hover:bg-dark-border/50 transition disabled:opacity-50"
+                  >
+                    戻る
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!extendFile || !extendingEpisode) return;
+                      setExtendUploading(true);
+                      setExtendStatus("動画をアップロード中...");
+                      try {
+                        const ext = extendFile.name.split(".").pop() || "mp4";
+                        const path = `${profile?.id}/${extendingEpisode.drama_id}_replace_${Date.now()}.${ext}`;
+                        const { error: upErr } = await supabase.storage.from("videos").upload(path, extendFile, { contentType: extendFile.type });
+                        if (upErr) throw new Error("アップロード失敗: " + upErr.message);
+                        setExtendStatus("動画URLを更新中...");
+                        const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
+                        const { error: updateErr } = await supabase.from("episodes").update({ video_url: urlData.publicUrl }).eq("id", extendingEpisode.id);
+                        if (updateErr) throw new Error("更新失敗: " + updateErr.message);
+                        setExtendStatus("完了！動画が差し替えられました。");
+                        const dramaId = extendingEpisode.drama_id;
+                        const { data: eps } = await supabase.from("episodes").select("*").eq("drama_id", dramaId).order("episode_number", { ascending: true });
+                        setDramaEpisodes((prev) => ({ ...prev, [dramaId]: eps || [] }));
+                        setTimeout(() => { setExtendingEpisode(null); setExtendStatus(null); setExtendFile(null); setExtendMode("select"); }, 2000);
+                      } catch (err: any) {
+                        setExtendStatus(`エラー: ${err.message}`);
+                      } finally {
+                        setExtendUploading(false);
+                      }
+                    }}
+                    disabled={!extendFile || extendUploading}
+                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-sm text-white font-medium transition"
+                  >
+                    {extendUploading ? "処理中..." : "アップロードして差し替え"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* モード選択画面のキャンセル */}
+            {extendMode === "select" && !extendLoading && (
               <button
-                onClick={() => { setExtendingEpisode(null); setExtendStatus(null); setExtendPrompt(""); }}
-                disabled={extendLoading}
-                className="flex-1 px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-sm hover:bg-dark-border/50 transition disabled:opacity-50"
+                onClick={() => { setExtendingEpisode(null); setExtendStatus(null); setExtendPrompt(""); setExtendMode("select"); setExtendFile(null); }}
+                className="w-full px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-sm text-dark-muted hover:bg-dark-border/50 transition"
               >
                 キャンセル
               </button>
-              <button
-                onClick={handleExtendEpisode}
-                disabled={extendLoading}
-                className="flex-1 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 rounded-lg text-sm text-white font-medium transition"
-              >
-                {extendLoading ? "処理中..." : "延長を開始"}
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1281,7 +1437,7 @@ export default function CreatorDashboard() {
                             <div className="flex items-center gap-1 flex-shrink-0">
                               {ep.is_published && (ep.piapi_task_id || ep.video_url) && (
                                 <button
-                                  onClick={() => { setExtendingEpisode(ep); setExtendPrompt(""); setExtendStatus(null); }}
+                                  onClick={() => { setExtendingEpisode(ep); setExtendMode("select"); setExtendPrompt(""); setExtendStatus(null); setExtendFile(null); }}
                                   className="p-1.5 text-accent/60 hover:text-accent hover:bg-accent/10 rounded-lg transition"
                                   title={`動画を延長${ep.source === "upload" ? "（無料）" : "（300コイン）"}`}
                                 >
