@@ -3,7 +3,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const EXTEND_COST = 300; // 延長のコイン消費量
+const EXTEND_COST_AI = 300;     // AI生成動画の延長コスト
+const EXTEND_COST_UPLOAD = 0;   // アップロード動画の延長コスト（テスト中は無料）
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +15,13 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
+    }
+
+    if (!process.env.PIAPI_API_KEY) {
+      return NextResponse.json(
+        { error: "動画延長サービスが設定されていません" },
+        { status: 503 }
+      );
     }
 
     const { episode_id, prompt } = await request.json();
@@ -46,25 +54,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!episode.piapi_task_id) {
+    // ソースに応じてコスト決定
+    const isUpload = episode.source === "upload";
+    const extendCost = isUpload ? EXTEND_COST_UPLOAD : EXTEND_COST_AI;
+
+    // AI生成動画はpiapi_task_idが必要、アップロード動画はvideo_urlが必要
+    if (!isUpload && !episode.piapi_task_id) {
       return NextResponse.json(
-        { error: "このエピソードにはPiAPIタスクIDがありません。延長には元の動画生成タスクIDが必要です。" },
+        { error: "このエピソードにはPiAPIタスクIDがありません。延長できません。" },
         { status: 400 }
       );
     }
 
-    // コイン残高確認
+    if (isUpload && !episode.video_url) {
+      return NextResponse.json(
+        { error: "動画URLが見つかりません。" },
+        { status: 400 }
+      );
+    }
+
+    // コイン残高確認（コストが0の場合はスキップ）
     const { data: profile } = await supabase
       .from("profiles")
       .select("coin_balance")
       .eq("id", user.id)
       .single();
 
-    if (!profile || profile.coin_balance < EXTEND_COST) {
-      return NextResponse.json(
-        { error: `コインが不足しています（必要: ${EXTEND_COST}コイン、残高: ${profile?.coin_balance || 0}コイン）` },
-        { status: 400 }
-      );
+    if (extendCost > 0) {
+      if (!profile || profile.coin_balance < extendCost) {
+        return NextResponse.json(
+          { error: `コインが不足しています（必要: ${extendCost}コイン、残高: ${profile?.coin_balance || 0}コイン）` },
+          { status: 400 }
+        );
+      }
     }
 
     // PiAPI Extend API呼び出し
@@ -74,13 +96,23 @@ export async function POST(request: NextRequest) {
     let piApiError: string | null = null;
 
     try {
-      const piRes = await fetch("https://api.piapi.ai/api/v1/task", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": process.env.PIAPI_API_KEY || "",
-        },
-        body: JSON.stringify({
+      // リクエストボディをソースに応じて構築
+      let requestBody: Record<string, unknown>;
+
+      if (isUpload) {
+        // アップロード動画: video_urlを使ってimage-to-video的に延長
+        requestBody = {
+          model: "kling",
+          task_type: "video_extend",
+          input: {
+            video_url: episode.video_url,
+            prompt: extendPrompt,
+            cfg_scale: 0.5,
+          },
+        };
+      } else {
+        // AI生成動画: task_idを使って延長
+        requestBody = {
           model: "kling",
           task_type: "video_extend",
           input: {
@@ -88,7 +120,16 @@ export async function POST(request: NextRequest) {
             prompt: extendPrompt,
             cfg_scale: 0.5,
           },
-        }),
+        };
+      }
+
+      const piRes = await fetch("https://api.piapi.ai/api/v1/task", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.PIAPI_API_KEY ?? "",
+        },
+        body: JSON.stringify(requestBody),
       });
 
       const piData = await piRes.json();
@@ -116,27 +157,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // コイン消費
-    const newBalance = profile.coin_balance - EXTEND_COST;
-    await supabase
-      .from("profiles")
-      .update({ coin_balance: newBalance })
-      .eq("id", user.id);
+    // コイン消費（コストが0より大きい場合のみ）
+    let newBalance = profile?.coin_balance || 0;
+    if (extendCost > 0) {
+      newBalance = (profile?.coin_balance || 0) - extendCost;
+      await supabase
+        .from("profiles")
+        .update({ coin_balance: newBalance })
+        .eq("id", user.id);
 
-    // 取引履歴
-    await supabase.from("transactions").insert({
-      user_id: user.id,
-      type: "generate",
-      amount: -EXTEND_COST,
-      balance_after: newBalance,
-      reference_id: episode.drama_id,
-      description: `動画延長: ${episode.title}`,
-    });
+      await supabase.from("transactions").insert({
+        user_id: user.id,
+        type: "generate",
+        amount: -extendCost,
+        balance_after: newBalance,
+        reference_id: episode.drama_id,
+        description: `動画延長: ${episode.title}`,
+      });
+    }
+
+    // 延長タスクIDをエピソードに保存（ステータスポーリング用）
+    await supabase
+      .from("episodes")
+      .update({ piapi_task_id: taskId })
+      .eq("id", episode.id);
 
     return NextResponse.json({
       task_id: taskId,
       episode_id: episode.id,
       balance: newBalance,
+      cost: extendCost,
     });
   } catch (error) {
     console.error("Extend error:", error);

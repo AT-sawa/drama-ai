@@ -882,7 +882,10 @@ export default function CreatorDashboard() {
           <div className="bg-dark-bg border border-dark-border rounded-xl max-w-md w-full p-6">
             <h2 className="text-xl font-bold mb-1">動画を延長</h2>
             <p className="text-sm text-dark-muted mb-4">
-              EP.{extendingEpisode.episode_number}「{extendingEpisode.title}」の続きを生成します（300コイン）
+              EP.{extendingEpisode.episode_number}「{extendingEpisode.title}」の続きを生成します
+              {extendingEpisode.source === "upload"
+                ? "（テスト中: 無料）"
+                : "（300コイン）"}
             </p>
 
             {extendStatus && (
@@ -1276,11 +1279,11 @@ export default function CreatorDashboard() {
 
                             {/* エピソードアクション */}
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              {ep.piapi_task_id && ep.is_published && (
+                              {ep.is_published && (ep.piapi_task_id || ep.video_url) && (
                                 <button
                                   onClick={() => { setExtendingEpisode(ep); setExtendPrompt(""); setExtendStatus(null); }}
                                   className="p-1.5 text-accent/60 hover:text-accent hover:bg-accent/10 rounded-lg transition"
-                                  title="動画を延長"
+                                  title={`動画を延長${ep.source === "upload" ? "（無料）" : "（300コイン）"}`}
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />

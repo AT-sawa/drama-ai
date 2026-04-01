@@ -59,6 +59,7 @@ export interface Episode {
   view_count: number;
   is_published: boolean;
   is_free: boolean;
+  source: "ai" | "upload";
   created_at: string;
   updated_at: string;
   drama?: Drama;
