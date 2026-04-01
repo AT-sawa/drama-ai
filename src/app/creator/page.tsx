@@ -883,7 +883,7 @@ export default function CreatorDashboard() {
       {extendingEpisode && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-dark-bg border border-dark-border rounded-xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold mb-1">動画を延長・差し替え</h2>
+            <h2 className="text-xl font-bold mb-1">動画を延長</h2>
             <p className="text-sm text-dark-muted mb-4">
               EP.{extendingEpisode.episode_number}「{extendingEpisode.title}」
             </p>
