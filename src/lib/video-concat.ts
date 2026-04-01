@@ -159,7 +159,7 @@ export async function concatenateVideos(
     const outputData = await ffmpeg.readFile("output.mp4");
     await safeDelete(ffmpeg, "output.mp4");
 
-    const blob = new Blob([outputData], { type: "video/mp4" });
+    const blob = new Blob([outputData as BlobPart], { type: "video/mp4" });
 
     // durationが取れなかった場合のフォールバック
     if (duration === 0) {
