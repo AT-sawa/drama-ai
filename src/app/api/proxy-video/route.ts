@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     "storage.theapi.app",
     "cdn.piapi.ai",
     "kling",
+    "supabase.co",
   ];
   try {
     const parsed = new URL(url);
