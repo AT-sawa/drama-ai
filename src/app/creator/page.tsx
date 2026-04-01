@@ -1049,27 +1049,23 @@ export default function CreatorDashboard() {
                       try {
                         if (!extendingEpisode.video_url) throw new Error("元の動画URLが見つかりません");
 
-                        // ffmpeg.wasmで動画を結合（TS変換経由でシーク問題を解消）
-                        const { concatenateVideos } = await import("@/lib/video-concat");
-                        const { blob: concatenated, duration: newDuration } = await concatenateVideos(
-                          extendingEpisode.video_url,
-                          extendFile,
-                          (msg) => setExtendStatus(msg)
-                        );
+                        // サーバーサイドで動画を結合
+                        setExtendStatus("動画をサーバーに送信中...");
+                        const formData = new FormData();
+                        formData.append("episode_id", extendingEpisode.id);
+                        formData.append("video", extendFile);
 
-                        // 結合した動画をアップロード
-                        setExtendStatus("結合した動画をアップロード中...");
-                        const path = `${profile?.id}/${extendingEpisode.drama_id}_concat_${Date.now()}.mp4`;
-                        const { error: upErr } = await supabase.storage.from("videos").upload(path, concatenated, { contentType: "video/mp4" });
-                        if (upErr) throw new Error("アップロード失敗: " + upErr.message);
+                        const res = await fetch("/api/video/concat", {
+                          method: "POST",
+                          body: formData,
+                        });
 
-                        setExtendStatus("動画URLを更新中...");
-                        const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
-                        // video_url と duration を同時に更新
-                        const updateFields: Record<string, unknown> = { video_url: urlData.publicUrl };
-                        if (newDuration > 0) updateFields.duration = newDuration;
-                        const { error: updateErr } = await supabase.from("episodes").update(updateFields).eq("id", extendingEpisode.id);
-                        if (updateErr) throw new Error("更新失敗: " + updateErr.message);
+                        setExtendStatus("サーバーで動画を結合中...");
+                        const data = await res.json();
+
+                        if (!res.ok) {
+                          throw new Error(data.error || "結合に失敗しました");
+                        }
 
                         setExtendStatus("完了！動画が結合されました。");
                         const dramaId = extendingEpisode.drama_id;
@@ -1077,6 +1073,7 @@ export default function CreatorDashboard() {
                         setDramaEpisodes((prev) => ({ ...prev, [dramaId]: eps || [] }));
                         setTimeout(() => { setExtendingEpisode(null); setExtendStatus(null); setExtendFile(null); setExtendMode("select"); }, 2000);
                       } catch (err: any) {
+                        console.error("[extend-upload] Error:", err);
                         setExtendStatus(`エラー: ${err.message}`);
                       } finally {
                         setExtendUploading(false);
