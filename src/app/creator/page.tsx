@@ -1049,9 +1049,9 @@ export default function CreatorDashboard() {
                       try {
                         if (!extendingEpisode.video_url) throw new Error("元の動画URLが見つかりません");
 
-                        // ffmpeg.wasmで動画を結合
+                        // ffmpeg.wasmで動画を結合（TS変換経由でシーク問題を解消）
                         const { concatenateVideos } = await import("@/lib/video-concat");
-                        const concatenated = await concatenateVideos(
+                        const { blob: concatenated, duration: newDuration } = await concatenateVideos(
                           extendingEpisode.video_url,
                           extendFile,
                           (msg) => setExtendStatus(msg)
@@ -1065,7 +1065,10 @@ export default function CreatorDashboard() {
 
                         setExtendStatus("動画URLを更新中...");
                         const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
-                        const { error: updateErr } = await supabase.from("episodes").update({ video_url: urlData.publicUrl }).eq("id", extendingEpisode.id);
+                        // video_url と duration を同時に更新
+                        const updateFields: Record<string, unknown> = { video_url: urlData.publicUrl };
+                        if (newDuration > 0) updateFields.duration = newDuration;
+                        const { error: updateErr } = await supabase.from("episodes").update(updateFields).eq("id", extendingEpisode.id);
                         if (updateErr) throw new Error("更新失敗: " + updateErr.message);
 
                         setExtendStatus("完了！動画が結合されました。");

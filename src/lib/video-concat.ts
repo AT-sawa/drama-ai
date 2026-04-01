@@ -11,7 +11,6 @@ export async function loadFFmpeg(
 ): Promise<any> {
   if (ffmpegInstance) return ffmpegInstance;
   if (ffmpegLoading) {
-    // 他のリクエストがロード中の場合は待機
     while (ffmpegLoading) {
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -27,7 +26,6 @@ export async function loadFFmpeg(
 
     const ffmpeg = new FFmpeg();
 
-    // CDNからwasmファイルをロード
     const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
     await ffmpeg.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
@@ -44,11 +42,16 @@ export async function loadFFmpeg(
   }
 }
 
+export interface ConcatResult {
+  blob: Blob;
+  duration: number; // 結合後の総秒数
+}
+
 export async function concatenateVideos(
   existingVideoUrl: string,
   newVideoFile: File,
   onProgress?: (msg: string) => void
-): Promise<Blob> {
+): Promise<ConcatResult> {
   const ffmpeg = await loadFFmpeg(onProgress);
   const { fetchFile } = await import("@ffmpeg/util");
 
@@ -61,41 +64,136 @@ export async function concatenateVideos(
   const newData = new Uint8Array(await newVideoFile.arrayBuffer());
 
   // 3. FFmpegに入力ファイルを書き込み
-  onProgress?.("動画を結合中...");
   await ffmpeg.writeFile("input1.mp4", existingData);
   await ffmpeg.writeFile("input2.mp4", newData);
 
-  // 4. concat用のリストファイルを作成
-  const concatList = "file 'input1.mp4'\nfile 'input2.mp4'\n";
-  await ffmpeg.writeFile(
-    "filelist.txt",
-    new TextEncoder().encode(concatList)
-  );
-
-  // 5. 結合実行（再エンコードなしのconcat demuxer）
+  // 4. 各入力をTS（MPEG-TS）に変換してタイムスタンプを正規化
+  //    これによりコーデックやタイムスタンプの差異を吸収し、シークが正常に動作する
+  onProgress?.("動画を変換中（1/2）...");
   await ffmpeg.exec([
-    "-f",
-    "concat",
-    "-safe",
-    "0",
-    "-i",
-    "filelist.txt",
-    "-c",
-    "copy",
-    "-movflags",
-    "+faststart",
+    "-i", "input1.mp4",
+    "-c", "copy",
+    "-bsf:v", "h264_mp4toannexb",
+    "-f", "mpegts",
+    "part1.ts",
+  ]);
+
+  onProgress?.("動画を変換中（2/2）...");
+  await ffmpeg.exec([
+    "-i", "input2.mp4",
+    "-c", "copy",
+    "-bsf:v", "h264_mp4toannexb",
+    "-f", "mpegts",
+    "part2.ts",
+  ]);
+
+  // 5. TS同士をconcatプロトコルで結合し、MP4に再mux
+  onProgress?.("動画を結合中...");
+  await ffmpeg.exec([
+    "-i", "concat:part1.ts|part2.ts",
+    "-c", "copy",
+    "-bsf:a", "aac_adtstoasc",
+    "-movflags", "+faststart",
     "output.mp4",
   ]);
 
-  // 6. 出力を読み取り
+  // 6. 結合後のdurationを取得
+  onProgress?.("動画情報を取得中...");
+  let duration = 0;
+  try {
+    // ffprobeでduration取得（ffmpeg.wasmではffprobeがないのでffmpegの-iオプションで情報取得）
+    // stderrからDuration情報をキャプチャ
+    const logs: string[] = [];
+    const logHandler = ({ message }: { message: string }) => {
+      logs.push(message);
+    };
+    ffmpeg.on("log", logHandler);
+
+    await ffmpeg.exec(["-i", "output.mp4", "-f", "null", "-"]).catch(() => {
+      // -f null は正常終了しないことがあるので無視
+    });
+
+    ffmpeg.off("log", logHandler);
+
+    // "Duration: HH:MM:SS.mm" のパターンをログから探す
+    for (const log of logs) {
+      const match = log.match(/Duration:\s*(\d+):(\d+):(\d+)\.(\d+)/);
+      if (match) {
+        const h = parseInt(match[1]);
+        const m = parseInt(match[2]);
+        const s = parseInt(match[3]);
+        const ms = parseInt(match[4]);
+        duration = h * 3600 + m * 60 + s + ms / 100;
+        break;
+      }
+    }
+  } catch {
+    // duration取得に失敗しても結合自体は成功しているので続行
+  }
+
+  // 7. 出力を読み取り
   onProgress?.("結合した動画を準備中...");
   const outputData = await ffmpeg.readFile("output.mp4");
 
   // クリーンアップ
-  await ffmpeg.deleteFile("input1.mp4");
-  await ffmpeg.deleteFile("input2.mp4");
-  await ffmpeg.deleteFile("filelist.txt");
-  await ffmpeg.deleteFile("output.mp4");
+  const filesToClean = [
+    "input1.mp4", "input2.mp4", "part1.ts", "part2.ts", "output.mp4",
+  ];
+  for (const f of filesToClean) {
+    try {
+      await ffmpeg.deleteFile(f);
+    } catch {
+      // ファイルが存在しない場合は無視
+    }
+  }
 
-  return new Blob([outputData], { type: "video/mp4" });
+  const blob = new Blob([outputData], { type: "video/mp4" });
+
+  // durationがffmpegから取れなかった場合、Blobサイズから推定せずにブラウザで取得
+  if (duration === 0) {
+    try {
+      duration = await getBlobVideoDuration(blob);
+    } catch {
+      // 取得できなくても続行
+    }
+  }
+
+  return { blob, duration: Math.round(duration) };
+}
+
+/**
+ * BlobのHTMLVideoElementからdurationを取得するフォールバック
+ */
+function getBlobVideoDuration(blob: Blob): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const url = URL.createObjectURL(blob);
+    video.src = url;
+
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      if (isFinite(video.duration) && video.duration > 0) {
+        resolve(video.duration);
+      } else {
+        // Infinity対策：seekして実際のdurationを取得
+        video.currentTime = Number.MAX_SAFE_INTEGER;
+        video.ontimeupdate = () => {
+          video.ontimeupdate = null;
+          resolve(video.duration);
+        };
+      }
+    };
+
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load video metadata"));
+    };
+
+    // タイムアウト
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Timeout loading video metadata"));
+    }, 10000);
+  });
 }
