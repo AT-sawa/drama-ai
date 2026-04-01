@@ -1049,18 +1049,26 @@ export default function CreatorDashboard() {
                       try {
                         if (!extendingEpisode.video_url) throw new Error("元の動画URLが見つかりません");
 
-                        // サーバーサイドで動画を結合
-                        setExtendStatus("動画をサーバーに送信中...");
-                        const formData = new FormData();
-                        formData.append("episode_id", extendingEpisode.id);
-                        formData.append("video", extendFile);
+                        // 1. 動画をSupabase Storageにアップロード
+                        setExtendStatus("動画をアップロード中...");
+                        const ext = extendFile.name.split(".").pop() || "mp4";
+                        const tempPath = `${profile?.id}/${extendingEpisode.drama_id}_temp_${Date.now()}.${ext}`;
+                        const { error: upErr } = await supabase.storage.from("videos").upload(tempPath, extendFile, { contentType: extendFile.type });
+                        if (upErr) throw new Error("アップロード失敗: " + upErr.message);
 
+                        const { data: urlData } = supabase.storage.from("videos").getPublicUrl(tempPath);
+
+                        // 2. サーバーサイドで結合（URLだけ送信、4.5MB制限を回避）
+                        setExtendStatus("サーバーで動画を結合中...");
                         const res = await fetch("/api/video/concat", {
                           method: "POST",
-                          body: formData,
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            episode_id: extendingEpisode.id,
+                            new_video_url: urlData.publicUrl,
+                          }),
                         });
 
-                        setExtendStatus("サーバーで動画を結合中...");
                         const data = await res.json();
 
                         if (!res.ok) {

@@ -8,7 +8,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 
 export const runtime = "nodejs";
-export const maxDuration = 120; // 2分（動画結合は時間がかかる）
+export const maxDuration = 120;
 
 const execFileAsync = promisify(execFile);
 
@@ -21,8 +21,9 @@ function createStorageClient() {
 
 /**
  * サーバーサイド動画結合API
- * POST: { episode_id: string }
- * multipart/form-data: video (File)
+ * POST JSON: { episode_id: string, new_video_url: string }
+ * 動画ファイルはクライアントが事前にSupabase Storageにアップロードし、
+ * そのURLをこのAPIに渡す（Vercelの4.5MBボディ制限を回避）
  */
 export async function POST(request: NextRequest) {
   let tempDir: string | null = null;
@@ -37,13 +38,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const episodeId = formData.get("episode_id") as string;
-    const videoFile = formData.get("video") as File;
+    const { episode_id: episodeId, new_video_url: newVideoUrl } = await request.json();
 
-    if (!episodeId || !videoFile) {
+    if (!episodeId || !newVideoUrl) {
       return NextResponse.json(
-        { error: "episode_id と video ファイルが必要です" },
+        { error: "episode_id と new_video_url が必要です" },
         { status: 400 }
       );
     }
@@ -105,9 +104,13 @@ export async function POST(request: NextRequest) {
     const existingBuf = Buffer.from(await existingRes.arrayBuffer());
     await writeFile(input1Path, existingBuf);
 
-    // 2. アップロードされた動画を保存
-    console.log("[concat] Saving uploaded video, size:", videoFile.size);
-    const newBuf = Buffer.from(await videoFile.arrayBuffer());
+    // 2. 新しい動画をURLからダウンロード
+    console.log("[concat] Downloading new video:", newVideoUrl);
+    const newRes = await fetch(newVideoUrl);
+    if (!newRes.ok) {
+      throw new Error(`新動画のダウンロード失敗: ${newRes.status}`);
+    }
+    const newBuf = Buffer.from(await newRes.arrayBuffer());
     await writeFile(input2Path, newBuf);
 
     // 3. TS変換 + 結合（タイムスタンプ正規化でシーク問題を解消）
