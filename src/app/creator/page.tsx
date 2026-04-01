@@ -934,9 +934,9 @@ export default function CreatorDashboard() {
                       </svg>
                     </div>
                     <div>
-                      <p className="font-medium text-dark-text group-hover:text-green-400 transition">手動アップロード</p>
+                      <p className="font-medium text-dark-text group-hover:text-green-400 transition">手動で動画を結合</p>
                       <p className="text-xs text-dark-muted mt-0.5">
-                        自分の動画ファイルで差し替え
+                        自分の動画を末尾に結合して延長
                         <span className="text-green-400 ml-1">（無料）</span>
                       </p>
                     </div>
@@ -1046,17 +1046,29 @@ export default function CreatorDashboard() {
                     onClick={async () => {
                       if (!extendFile || !extendingEpisode) return;
                       setExtendUploading(true);
-                      setExtendStatus("動画をアップロード中...");
                       try {
-                        const ext = extendFile.name.split(".").pop() || "mp4";
-                        const path = `${profile?.id}/${extendingEpisode.drama_id}_replace_${Date.now()}.${ext}`;
-                        const { error: upErr } = await supabase.storage.from("videos").upload(path, extendFile, { contentType: extendFile.type });
+                        if (!extendingEpisode.video_url) throw new Error("元の動画URLが見つかりません");
+
+                        // ffmpeg.wasmで動画を結合
+                        const { concatenateVideos } = await import("@/lib/video-concat");
+                        const concatenated = await concatenateVideos(
+                          extendingEpisode.video_url,
+                          extendFile,
+                          (msg) => setExtendStatus(msg)
+                        );
+
+                        // 結合した動画をアップロード
+                        setExtendStatus("結合した動画をアップロード中...");
+                        const path = `${profile?.id}/${extendingEpisode.drama_id}_concat_${Date.now()}.mp4`;
+                        const { error: upErr } = await supabase.storage.from("videos").upload(path, concatenated, { contentType: "video/mp4" });
                         if (upErr) throw new Error("アップロード失敗: " + upErr.message);
+
                         setExtendStatus("動画URLを更新中...");
                         const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
                         const { error: updateErr } = await supabase.from("episodes").update({ video_url: urlData.publicUrl }).eq("id", extendingEpisode.id);
                         if (updateErr) throw new Error("更新失敗: " + updateErr.message);
-                        setExtendStatus("完了！動画が差し替えられました。");
+
+                        setExtendStatus("完了！動画が結合されました。");
                         const dramaId = extendingEpisode.drama_id;
                         const { data: eps } = await supabase.from("episodes").select("*").eq("drama_id", dramaId).order("episode_number", { ascending: true });
                         setDramaEpisodes((prev) => ({ ...prev, [dramaId]: eps || [] }));
@@ -1070,7 +1082,7 @@ export default function CreatorDashboard() {
                     disabled={!extendFile || extendUploading}
                     className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-sm text-white font-medium transition"
                   >
-                    {extendUploading ? "処理中..." : "アップロードして差し替え"}
+                    {extendUploading ? "処理中..." : "結合してアップロード"}
                   </button>
                 </div>
               </>

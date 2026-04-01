@@ -10,6 +10,18 @@ const nextConfig = {
   experimental: {
     instrumentationHook: true,
   },
+  // Cross-Origin headers for ffmpeg.wasm (SharedArrayBuffer)
+  async headers() {
+    return [
+      {
+        source: "/creator",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+        ],
+      },
+    ];
+  },
 };
 
 // Sentryが設定されている場合のみラップ
