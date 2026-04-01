@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { logAdminAction } from "@/lib/admin-log";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,8 @@ export async function PATCH(request: NextRequest) {
 
     if (error) throw error;
 
+    await logAdminAction(admin, user.id, "update_drama", "drama", dramaId, allowedFields);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Admin drama update error:", error);
@@ -141,6 +144,8 @@ export async function DELETE(request: NextRequest) {
       .eq("id", dramaId);
 
     if (error) throw error;
+
+    await logAdminAction(admin, user.id, "delete_drama", "drama", dramaId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

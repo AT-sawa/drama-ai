@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { logAdminAction } from "@/lib/admin-log";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,9 @@ export async function PATCH(request: NextRequest) {
       .eq("id", userId);
 
     if (error) throw error;
+
+    // 監査ログ記録
+    await logAdminAction(admin, user.id, "update_user", "user", userId, allowedFields);
 
     return NextResponse.json({ success: true });
   } catch (error) {

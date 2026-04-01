@@ -40,11 +40,19 @@ setInterval(() => {
 
 // API パスごとのレート制限設定
 const API_RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
-  "/api/generate": { max: 5, windowMs: 60000 },        // 動画生成: 1分5回
+  "/api/auth": { max: 10, windowMs: 60000 },            // 認証: 1分10回（ブルートフォース防止）
+  "/api/generate": { max: 5, windowMs: 60000 },         // 動画生成: 1分5回
   "/api/report": { max: 10, windowMs: 60000 },          // 通報: 1分10回
   "/api/creator/apply": { max: 3, windowMs: 300000 },   // クリエイター申請: 5分3回
   "/api/coins/purchase": { max: 10, windowMs: 60000 },  // コイン購入: 1分10回
+  "/api/episodes/create": { max: 10, windowMs: 60000 }, // 動画アップロード: 1分10回
   "/api/drama": { max: 30, windowMs: 60000 },           // コメント等: 1分30回
+};
+
+// ログイン/登録ページのレートリミット
+const PAGE_RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
+  "/login": { max: 20, windowMs: 60000 },               // ログインページ: 1分20回
+  "/register": { max: 10, windowMs: 60000 },            // 登録ページ: 1分10回
 };
 
 export async function middleware(request: NextRequest) {
@@ -73,6 +81,24 @@ export async function middleware(request: NextRequest) {
           }
         );
       }
+    }
+  }
+
+  // ログイン/登録ページのレートリミット
+  const pageLimit = Object.entries(PAGE_RATE_LIMITS).find(([path]) =>
+    pathname === path
+  );
+  if (pageLimit) {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const [, { max, windowMs }] = pageLimit;
+    if (!checkRateLimit(ip, pageLimit[0], max, windowMs)) {
+      return NextResponse.json(
+        { error: "アクセスが集中しています。しばらくしてから再度お試しください。" },
+        { status: 429 }
+      );
     }
   }
 

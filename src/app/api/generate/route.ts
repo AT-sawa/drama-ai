@@ -92,7 +92,10 @@ export async function POST(request: NextRequest) {
       duration = 10,
       mode = "pro",
       enable_audio = true,
+      coin_price = 50,
     } = await request.json();
+
+    const validCoinPrice = Math.max(0, Math.min(10000, parseInt(String(coin_price)) || 50));
 
     if (!drama_id || !episode_number || !title || !prompt) {
       return NextResponse.json(
@@ -217,7 +220,7 @@ export async function POST(request: NextRequest) {
         cloudflare_video_id: null,
         piapi_task_id: taskId,
         duration: validDuration,
-        coin_price: 50,
+        coin_price: validCoinPrice,
         is_published: false,
       })
       .select()

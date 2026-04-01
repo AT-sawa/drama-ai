@@ -21,17 +21,19 @@ export default async function HomePage({
   const currentPage = Math.max(1, parseInt(searchParams.page || "1", 10) || 1);
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
-  // 総件数取得用クエリ
+  // 総件数取得用クエリ（エピソード0件を除外）
   let countQuery = supabase
     .from("dramas")
     .select("id", { count: "exact", head: true })
-    .eq("is_published", true);
+    .eq("is_published", true)
+    .gt("total_episodes", 0);
 
-  // データ取得用クエリ
+  // データ取得用クエリ（エピソード0件のドラマを除外）
   let query = supabase
     .from("dramas")
     .select("*, creator:profiles(id, display_name)")
     .eq("is_published", true)
+    .gt("total_episodes", 0)
     .order("created_at", { ascending: false })
     .range(offset, offset + ITEMS_PER_PAGE - 1);
 
@@ -41,10 +43,16 @@ export default async function HomePage({
   }
 
   if (searchParams.q) {
-    const keyword = searchParams.q.trim();
-    const filter = `title.ilike.%${keyword}%,description.ilike.%${keyword}%`;
-    countQuery = countQuery.or(filter);
-    query = query.or(filter);
+    // ワイルドカード文字をエスケープし、長さを制限
+    const keyword = searchParams.q
+      .trim()
+      .slice(0, 100)
+      .replace(/[%_\\]/g, "\\$&");
+    if (keyword.length > 0) {
+      const filter = `title.ilike.%${keyword}%,description.ilike.%${keyword}%`;
+      countQuery = countQuery.or(filter);
+      query = query.or(filter);
+    }
   }
 
   const [{ count }, { data: dramas }] = await Promise.all([

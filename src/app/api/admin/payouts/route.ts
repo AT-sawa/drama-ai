@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { logAdminAction } from "@/lib/admin-log";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,8 @@ export async function PATCH(request: NextRequest) {
       .eq("id", payoutId);
 
     if (error) throw error;
+
+    await logAdminAction(admin, user.id, "update_payout", "payout", payoutId, { status, adminNote });
 
     // 通知を送信
     const { data: payout } = await admin
