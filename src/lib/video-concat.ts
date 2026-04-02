@@ -1,11 +1,12 @@
 /**
- * ブラウザ上でffmpeg.wasmを使って2つの動画を結合する
- * 元の動画の末尾にアップロードした動画を追加して1本にする
+ * ブラウザネイティブAPIで2つの動画を結合する
+ * Canvas + MediaRecorder方式（ffmpeg不要）
  *
- * 3本以上の結合に対応:
- * - 毎回ffmpegインスタンスを新規作成（メモリリーク防止）
- * - CORS回避のためサーバーサイドプロキシ経由で既存動画を取得
- * - 処理前後にファイルシステムを完全クリーンアップ
+ * フロー:
+ * 1. 両方の動画のメタデータを読み込み
+ * 2. Canvasに動画1のフレームを描画→動画2のフレームを描画
+ * 3. MediaRecorderでCanvasの出力をWebMに録画
+ * 4. 結果のBlobと合計durationを返す
  */
 
 export interface ConcatResult {
@@ -13,59 +14,89 @@ export interface ConcatResult {
   duration: number;
 }
 
-async function createFFmpeg(
-  onProgress?: (msg: string) => void
-) {
-  onProgress?.("FFmpegを読み込み中...");
-
-  const { FFmpeg } = await import("@ffmpeg/ffmpeg");
-  const { toBlobURL } = await import("@ffmpeg/util");
-
-  const ffmpeg = new FFmpeg();
-
-  const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-    wasmURL: await toBlobURL(
-      `${baseURL}/ffmpeg-core.wasm`,
-      "application/wasm"
-    ),
+/**
+ * 動画のメタデータ（duration）を取得
+ */
+function getVideoDuration(src: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.crossOrigin = "anonymous";
+    video.src = src;
+    video.onloadedmetadata = () => {
+      if (isFinite(video.duration) && video.duration > 0) {
+        resolve(video.duration);
+      } else {
+        // Infinityの場合はseekして取得
+        video.currentTime = 1e10;
+        video.ontimeupdate = () => {
+          video.ontimeupdate = null;
+          resolve(video.duration);
+        };
+      }
+    };
+    video.onerror = () => reject(new Error("動画の読み込みに失敗しました"));
+    setTimeout(() => reject(new Error("動画メタデータの取得タイムアウト")), 15000);
   });
-
-  return ffmpeg;
 }
 
 /**
- * URLから動画データを取得（CORS回避対応）
- * 同一オリジンならそのまま、クロスオリジンならプロキシ経由
+ * 動画をCanvasに描画しながらMediaRecorderで録画する
  */
-async function fetchVideoData(
-  url: string,
-  onProgress?: (msg: string) => void
-): Promise<Uint8Array> {
-  onProgress?.("既存の動画をダウンロード中...");
+function recordVideo(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  recorder: MediaRecorder
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    video.currentTime = 0;
 
-  // まず直接取得を試みる
+    const drawFrame = () => {
+      if (video.paused || video.ended) return;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      requestAnimationFrame(drawFrame);
+    };
+
+    video.onplay = () => drawFrame();
+    video.onended = () => resolve();
+    video.onerror = () => reject(new Error("動画の再生に失敗しました"));
+
+    video.play().catch(reject);
+  });
+}
+
+/**
+ * URLまたはBlobから動画要素を作成して読み込み完了を待つ
+ */
+function loadVideo(src: string): Promise<HTMLVideoElement> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.src = src;
+
+    video.oncanplaythrough = () => resolve(video);
+    video.onerror = () => reject(new Error("動画の読み込みに失敗しました: " + src.substring(0, 100)));
+    setTimeout(() => reject(new Error("動画の読み込みタイムアウト")), 30000);
+  });
+}
+
+/**
+ * CORS対応のURL取得（直接アクセスできない場合はプロキシ経由）
+ */
+async function getCorsUrl(url: string): Promise<string> {
   try {
-    const res = await fetch(url, { mode: "cors" });
-    if (res.ok) {
-      const buf = await res.arrayBuffer();
-      return new Uint8Array(buf);
-    }
+    // まず直接HEADリクエストで確認
+    const res = await fetch(url, { method: "HEAD", mode: "cors" });
+    if (res.ok) return url;
   } catch {
-    // CORS失敗 → プロキシ経由
+    // CORS失敗
   }
-
-  // プロキシ経由で取得
-  onProgress?.("既存の動画をプロキシ経由でダウンロード中...");
-  const proxyRes = await fetch(
-    `/api/proxy-video?url=${encodeURIComponent(url)}`
-  );
-  if (!proxyRes.ok) {
-    throw new Error("既存の動画のダウンロードに失敗しました");
-  }
-  const buf = await proxyRes.arrayBuffer();
-  return new Uint8Array(buf);
+  // プロキシ経由
+  return `/api/proxy-video?url=${encodeURIComponent(url)}`;
 }
 
 export async function concatenateVideos(
@@ -73,153 +104,88 @@ export async function concatenateVideos(
   newVideoFile: File,
   onProgress?: (msg: string) => void
 ): Promise<ConcatResult> {
-  // 毎回新しいインスタンスを作成（メモリリーク防止）
-  const ffmpeg = await createFFmpeg(onProgress);
+  console.log("[concat] Starting concatenation");
+  console.log("[concat] Existing URL:", existingVideoUrl);
+  console.log("[concat] New file:", newVideoFile.name, newVideoFile.size);
+
+  // 1. 既存動画のURLをCORS対応
+  onProgress?.("動画を準備中...");
+  const corsUrl = await getCorsUrl(existingVideoUrl);
+  console.log("[concat] CORS URL:", corsUrl);
+
+  // 2. 新しい動画のBlob URL作成
+  const newBlobUrl = URL.createObjectURL(newVideoFile);
 
   try {
-    // 1. 既存の動画をダウンロード（CORS対応）
-    const existingData = await fetchVideoData(existingVideoUrl, onProgress);
-
-    // 2. 新しい動画をバッファに変換
-    onProgress?.("アップロード動画を準備中...");
-    const newData = new Uint8Array(await newVideoFile.arrayBuffer());
-
-    // 3. FFmpegに入力ファイルを書き込み
-    await ffmpeg.writeFile("input1.mp4", existingData);
-    await ffmpeg.writeFile("input2.mp4", newData);
-
-    // 4. 各入力をTS（MPEG-TS）に変換してタイムスタンプを正規化
-    onProgress?.("動画を変換中（1/2）...");
-    await ffmpeg.exec([
-      "-i", "input1.mp4",
-      "-c", "copy",
-      "-bsf:v", "h264_mp4toannexb",
-      "-f", "mpegts",
-      "part1.ts",
+    // 3. 両方の動画を読み込み
+    onProgress?.("動画を読み込み中...");
+    const [video1, video2] = await Promise.all([
+      loadVideo(corsUrl),
+      loadVideo(newBlobUrl),
     ]);
 
-    // input1は不要になったので削除（メモリ解放）
-    await safeDelete(ffmpeg, "input1.mp4");
+    const duration1 = video1.duration;
+    const duration2 = video2.duration;
+    const totalDuration = duration1 + duration2;
+    console.log("[concat] Duration1:", duration1, "Duration2:", duration2, "Total:", totalDuration);
 
-    onProgress?.("動画を変換中（2/2）...");
-    await ffmpeg.exec([
-      "-i", "input2.mp4",
-      "-c", "copy",
-      "-bsf:v", "h264_mp4toannexb",
-      "-f", "mpegts",
-      "part2.ts",
-    ]);
+    // 4. Canvasを作成（動画1のサイズに合わせる）
+    const width = video1.videoWidth || 1920;
+    const height = video1.videoHeight || 1080;
+    console.log("[concat] Canvas size:", width, "x", height);
 
-    // input2も不要
-    await safeDelete(ffmpeg, "input2.mp4");
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d")!;
 
-    // 5. TS同士をconcatプロトコルで結合し、MP4に再mux
-    onProgress?.("動画を結合中...");
-    await ffmpeg.exec([
-      "-i", "concat:part1.ts|part2.ts",
-      "-c", "copy",
-      "-bsf:a", "aac_adtstoasc",
-      "-movflags", "+faststart",
-      "output.mp4",
-    ]);
+    // 5. MediaRecorderをセットアップ
+    const stream = canvas.captureStream(30); // 30fps
 
-    // TSファイルを削除（メモリ解放）
-    await safeDelete(ffmpeg, "part1.ts");
-    await safeDelete(ffmpeg, "part2.ts");
+    // 音声トラックがあれば追加
+    // 注: crossOriginの制約で音声はキャプチャできない場合がある
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : "video/webm";
 
-    // 6. 結合後のdurationを取得
-    onProgress?.("動画情報を取得中...");
-    let duration = 0;
-    try {
-      const logs: string[] = [];
-      const logHandler = ({ message }: { message: string }) => {
-        logs.push(message);
+    const recorder = new MediaRecorder(stream, {
+      mimeType,
+      videoBitsPerSecond: 5_000_000, // 5Mbps
+    });
+
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    // 6. 録画開始
+    recorder.start(100); // 100msごとにchunk
+
+    // 7. 動画1を再生・録画
+    onProgress?.("動画を結合中（1/2）...");
+    await recordVideo(video1, canvas, ctx, recorder);
+
+    // 8. 動画2を再生・録画
+    onProgress?.("動画を結合中（2/2）...");
+    await recordVideo(video2, canvas, ctx, recorder);
+
+    // 9. 録画停止
+    onProgress?.("結合を完了中...");
+    const resultBlob = await new Promise<Blob>((resolve) => {
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        resolve(blob);
       };
-      ffmpeg.on("log", logHandler);
-      await ffmpeg.exec(["-i", "output.mp4", "-f", "null", "-"]).catch(() => {});
-      ffmpeg.off("log", logHandler);
+      recorder.stop();
+    });
 
-      for (const log of logs) {
-        const match = log.match(/Duration:\s*(\d+):(\d+):(\d+)\.(\d+)/);
-        if (match) {
-          const h = parseInt(match[1]);
-          const m = parseInt(match[2]);
-          const s = parseInt(match[3]);
-          const ms = parseInt(match[4]);
-          duration = h * 3600 + m * 60 + s + ms / 100;
-          break;
-        }
-      }
-    } catch {
-      // duration取得失敗は無視
-    }
+    console.log("[concat] Result blob size:", resultBlob.size, "type:", resultBlob.type);
 
-    // 7. 出力を読み取り
-    onProgress?.("結合した動画を準備中...");
-    const outputData = await ffmpeg.readFile("output.mp4");
-    await safeDelete(ffmpeg, "output.mp4");
-
-    const blob = new Blob([outputData as BlobPart], { type: "video/mp4" });
-
-    // durationが取れなかった場合のフォールバック
-    if (duration === 0) {
-      try {
-        duration = await getBlobVideoDuration(blob);
-      } catch {
-        // 取得できなくても続行
-      }
-    }
-
-    return { blob, duration: Math.round(duration) };
+    return {
+      blob: resultBlob,
+      duration: Math.round(totalDuration),
+    };
   } finally {
-    // インスタンスを完全に破棄（メモリ解放）
-    try {
-      ffmpeg.terminate();
-    } catch {
-      // terminate失敗は無視
-    }
+    URL.revokeObjectURL(newBlobUrl);
   }
-}
-
-async function safeDelete(ffmpeg: any, filename: string) {
-  try {
-    await ffmpeg.deleteFile(filename);
-  } catch {
-    // ファイルが存在しない場合は無視
-  }
-}
-
-/**
- * BlobからHTMLVideoElementでdurationを取得するフォールバック
- */
-function getBlobVideoDuration(blob: Blob): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    const url = URL.createObjectURL(blob);
-    video.src = url;
-
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      if (isFinite(video.duration) && video.duration > 0) {
-        resolve(video.duration);
-      } else {
-        video.currentTime = Number.MAX_SAFE_INTEGER;
-        video.ontimeupdate = () => {
-          video.ontimeupdate = null;
-          resolve(video.duration);
-        };
-      }
-    };
-
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Failed to load video metadata"));
-    };
-
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Timeout loading video metadata"));
-    }, 10000);
-  });
 }

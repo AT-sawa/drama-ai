@@ -1049,31 +1049,27 @@ export default function CreatorDashboard() {
                       try {
                         if (!extendingEpisode.video_url) throw new Error("元の動画URLが見つかりません");
 
-                        // 1. 動画をSupabase Storageにアップロード
-                        setExtendStatus("動画をアップロード中...");
-                        const ext = extendFile.name.split(".").pop() || "mp4";
-                        const tempPath = `${profile?.id}/${extendingEpisode.drama_id}_temp_${Date.now()}.${ext}`;
-                        const { error: upErr } = await supabase.storage.from("videos").upload(tempPath, extendFile, { contentType: extendFile.type });
+                        // ブラウザ上で動画を結合（Canvas + MediaRecorder、ffmpeg不要）
+                        const { concatenateVideos } = await import("@/lib/video-concat");
+                        const { blob: resultBlob, duration: newDuration } = await concatenateVideos(
+                          extendingEpisode.video_url,
+                          extendFile,
+                          (msg) => setExtendStatus(msg)
+                        );
+
+                        // 結合した動画をアップロード
+                        setExtendStatus("結合した動画をアップロード中...");
+                        const path = `${profile?.id}/${extendingEpisode.drama_id}_concat_${Date.now()}.webm`;
+                        const { error: upErr } = await supabase.storage.from("videos").upload(path, resultBlob, { contentType: resultBlob.type });
                         if (upErr) throw new Error("アップロード失敗: " + upErr.message);
 
-                        const { data: urlData } = supabase.storage.from("videos").getPublicUrl(tempPath);
-
-                        // 2. サーバーサイドで結合（URLだけ送信、4.5MB制限を回避）
-                        setExtendStatus("サーバーで動画を結合中...");
-                        const res = await fetch("/api/video/concat", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            episode_id: extendingEpisode.id,
-                            new_video_url: urlData.publicUrl,
-                          }),
-                        });
-
-                        const data = await res.json();
-
-                        if (!res.ok) {
-                          throw new Error(data.error || "結合に失敗しました");
-                        }
+                        // エピソードのvideo_urlとdurationを更新
+                        setExtendStatus("動画URLを更新中...");
+                        const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
+                        const updateFields: Record<string, unknown> = { video_url: urlData.publicUrl };
+                        if (newDuration > 0) updateFields.duration = newDuration;
+                        const { error: updateErr } = await supabase.from("episodes").update(updateFields).eq("id", extendingEpisode.id);
+                        if (updateErr) throw new Error("DB更新失敗: " + updateErr.message);
 
                         setExtendStatus("完了！動画が結合されました。");
                         const dramaId = extendingEpisode.drama_id;
