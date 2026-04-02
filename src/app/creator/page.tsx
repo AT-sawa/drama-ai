@@ -1067,15 +1067,20 @@ export default function CreatorDashboard() {
                           v.onerror = () => { resolve(0); URL.revokeObjectURL(v.src); };
                         });
 
-                        // セグメントリストを構築
+                        // DBから最新のセグメントリストを取得（stateが古い可能性があるため）
                         setExtendStatus("エピソードを更新中...");
-                        const currentSegments = extendingEpisode.video_segments || [];
+                        const { data: latestEp } = await supabase
+                          .from("episodes")
+                          .select("video_segments, video_url, duration")
+                          .eq("id", extendingEpisode.id)
+                          .single();
+                        const currentSegments = latestEp?.video_segments || [];
                         // 初回延長の場合、元動画もセグメントに含める
                         let segments = [...currentSegments];
-                        if (segments.length === 0 && extendingEpisode.video_url) {
+                        if (segments.length === 0 && (latestEp?.video_url || extendingEpisode.video_url)) {
                           segments.push({
-                            url: extendingEpisode.video_url,
-                            duration: Math.round(extendingEpisode.duration || 0),
+                            url: latestEp?.video_url || extendingEpisode.video_url,
+                            duration: Math.round(latestEp?.duration || extendingEpisode.duration || 0),
                           });
                         }
                         segments.push({
