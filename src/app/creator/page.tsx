@@ -934,9 +934,9 @@ export default function CreatorDashboard() {
                       </svg>
                     </div>
                     <div>
-                      <p className="font-medium text-dark-text group-hover:text-green-400 transition">手動で動画を結合</p>
+                      <p className="font-medium text-dark-text group-hover:text-green-400 transition">動画を追加</p>
                       <p className="text-xs text-dark-muted mt-0.5">
-                        自分の動画を末尾に結合して延長
+                        自分の動画をセグメントとして追加（連続再生）
                         <span className="text-green-400 ml-1">（無料）</span>
                       </p>
                     </div>
@@ -1049,29 +1049,52 @@ export default function CreatorDashboard() {
                       try {
                         if (!extendingEpisode.video_url) throw new Error("元の動画URLが見つかりません");
 
-                        // ブラウザ上で動画を結合（Canvas + MediaRecorder、ffmpeg不要）
-                        const { concatenateVideos } = await import("@/lib/video-concat");
-                        const { blob: resultBlob, duration: newDuration } = await concatenateVideos(
-                          extendingEpisode.video_url,
-                          extendFile,
-                          (msg) => setExtendStatus(msg)
-                        );
-
-                        // 結合した動画をアップロード
-                        setExtendStatus("結合した動画をアップロード中...");
-                        const path = `${profile?.id}/${extendingEpisode.drama_id}_concat_${Date.now()}.webm`;
-                        const { error: upErr } = await supabase.storage.from("videos").upload(path, resultBlob, { contentType: resultBlob.type });
+                        // プレイリスト方式: 動画をアップロードしてセグメントとして追加
+                        setExtendStatus("動画をアップロード中...");
+                        const ext = extendFile.name.split(".").pop() || "mp4";
+                        const path = `${profile?.id}/${extendingEpisode.drama_id}_seg_${Date.now()}.${ext}`;
+                        const { error: upErr } = await supabase.storage.from("videos").upload(path, extendFile, { contentType: extendFile.type });
                         if (upErr) throw new Error("アップロード失敗: " + upErr.message);
 
-                        // エピソードのvideo_urlとdurationを更新
-                        setExtendStatus("動画URLを更新中...");
-                        const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
-                        const updateFields: Record<string, unknown> = { video_url: urlData.publicUrl };
-                        if (newDuration > 0) updateFields.duration = newDuration;
-                        const { error: updateErr } = await supabase.from("episodes").update(updateFields).eq("id", extendingEpisode.id);
+                        // アップロードした動画のdurationを取得
+                        setExtendStatus("動画情報を取得中...");
+                        const segUrl = supabase.storage.from("videos").getPublicUrl(path).data.publicUrl;
+                        const segDuration = await new Promise<number>((resolve) => {
+                          const v = document.createElement("video");
+                          v.preload = "metadata";
+                          v.src = URL.createObjectURL(extendFile);
+                          v.onloadedmetadata = () => { resolve(v.duration); URL.revokeObjectURL(v.src); };
+                          v.onerror = () => { resolve(0); URL.revokeObjectURL(v.src); };
+                        });
+
+                        // セグメントリストを構築
+                        setExtendStatus("エピソードを更新中...");
+                        const currentSegments = extendingEpisode.video_segments || [];
+                        // 初回延長の場合、元動画もセグメントに含める
+                        let segments = [...currentSegments];
+                        if (segments.length === 0 && extendingEpisode.video_url) {
+                          segments.push({
+                            url: extendingEpisode.video_url,
+                            duration: Math.round(extendingEpisode.duration || 0),
+                          });
+                        }
+                        segments.push({
+                          url: segUrl,
+                          duration: Math.round(segDuration),
+                        });
+
+                        const totalDuration = segments.reduce((sum, s) => sum + s.duration, 0);
+
+                        const { error: updateErr } = await supabase
+                          .from("episodes")
+                          .update({
+                            video_segments: segments,
+                            duration: totalDuration,
+                          })
+                          .eq("id", extendingEpisode.id);
                         if (updateErr) throw new Error("DB更新失敗: " + updateErr.message);
 
-                        setExtendStatus("完了！動画が結合されました。");
+                        setExtendStatus("完了！セグメントが追加されました。");
                         const dramaId = extendingEpisode.drama_id;
                         const { data: eps } = await supabase.from("episodes").select("*").eq("drama_id", dramaId).order("episode_number", { ascending: true });
                         setDramaEpisodes((prev) => ({ ...prev, [dramaId]: eps || [] }));
@@ -1086,7 +1109,7 @@ export default function CreatorDashboard() {
                     disabled={!extendFile || extendUploading}
                     className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-sm text-white font-medium transition"
                   >
-                    {extendUploading ? "処理中..." : "結合してアップロード"}
+                    {extendUploading ? "処理中..." : "アップロードして追加"}
                   </button>
                 </div>
               </>

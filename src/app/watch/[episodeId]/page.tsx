@@ -190,6 +190,7 @@ export default function WatchPage() {
           cloudflareVideoId={episode.cloudflare_video_id}
           title={episode.title}
           audioUrl={audioUrl}
+          videoSegments={episode.video_segments}
         />
       ) : (
         <div className="aspect-video bg-dark-card border border-dark-border rounded-xl flex items-center justify-center">

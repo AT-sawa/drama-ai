@@ -60,6 +60,7 @@ export interface Episode {
   is_published: boolean;
   is_free: boolean;
   source: "ai" | "upload";
+  video_segments: { url: string; duration: number }[];
   created_at: string;
   updated_at: string;
   drama?: Drama;

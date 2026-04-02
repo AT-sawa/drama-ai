@@ -2,14 +2,20 @@
 
 import { useRef, useState, useEffect } from "react";
 
+interface VideoSegment {
+  url: string;
+  duration: number;
+}
+
 interface Props {
   videoUrl: string | null;
   cloudflareVideoId: string | null;
   title: string;
   audioUrl?: string | null;
+  videoSegments?: VideoSegment[];
 }
 
-export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Props) {
+export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl, videoSegments }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -27,6 +33,14 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Pr
   const [buffered, setBuffered] = useState(0);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [audioLoaded, setAudioLoaded] = useState(false);
+
+  // プレイリスト再生
+  const segments = videoSegments && videoSegments.length > 0 ? videoSegments : null;
+  const [segmentIndex, setSegmentIndex] = useState(0);
+  const totalSegmentDuration = segments ? segments.reduce((s, seg) => s + seg.duration, 0) : 0;
+  // 現在のセグメントまでの累積時間
+  const segmentOffset = segments ? segments.slice(0, segmentIndex).reduce((s, seg) => s + seg.duration, 0) : 0;
+  const activeVideoUrl = segments ? segments[segmentIndex]?.url : videoUrl;
 
   // 音声の同期
   useEffect(() => {
@@ -80,7 +94,7 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Pr
   }
 
   // 動画がない場合
-  if (!videoUrl) {
+  if (!activeVideoUrl) {
     return (
       <div className="aspect-video bg-dark-card border border-dark-border rounded-xl flex items-center justify-center">
         <div className="text-center text-dark-muted">
@@ -140,9 +154,9 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Pr
   const handleTimeUpdate = () => {
     const v = videoRef.current;
     if (!v) return;
-    setCurrentTime(v.currentTime);
+    setCurrentTime(segments ? segmentOffset + v.currentTime : v.currentTime);
     if (v.buffered.length > 0) {
-      setBuffered(v.buffered.end(v.buffered.length - 1));
+      setBuffered(segments ? segmentOffset + v.buffered.end(v.buffered.length - 1) : v.buffered.end(v.buffered.length - 1));
     }
 
     // 音声の時間ズレ補正（0.3秒以上ズレたら同期）
@@ -158,7 +172,8 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Pr
   const handleLoadedMetadata = () => {
     const v = videoRef.current;
     if (!v) return;
-    setDuration(v.duration);
+    // プレイリスト再生時はトータルdurationを使用
+    setDuration(segments ? totalSegmentDuration : v.duration);
   };
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -167,10 +182,32 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Pr
     if (!v || !bar) return;
     const rect = bar.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newTime = ratio * v.duration;
-    v.currentTime = newTime;
-    syncAudio("seek", newTime);
-    setCurrentTime(newTime);
+
+    if (segments) {
+      // プレイリスト: クリック位置からセグメントとローカル時間を特定
+      const targetTime = ratio * totalSegmentDuration;
+      let accumulated = 0;
+      for (let i = 0; i < segments.length; i++) {
+        if (accumulated + segments[i].duration > targetTime) {
+          if (i !== segmentIndex) setSegmentIndex(i);
+          setTimeout(() => {
+            const vid = videoRef.current;
+            if (vid) {
+              vid.currentTime = targetTime - accumulated;
+              if (playing) vid.play().catch(() => {});
+            }
+          }, i !== segmentIndex ? 200 : 0);
+          setCurrentTime(targetTime);
+          return;
+        }
+        accumulated += segments[i].duration;
+      }
+    } else {
+      const newTime = ratio * v.duration;
+      v.currentTime = newTime;
+      syncAudio("seek", newTime);
+      setCurrentTime(newTime);
+    }
   };
 
   const handleVolumeClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -205,9 +242,22 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Pr
   };
 
   const handleEnded = () => {
+    if (segments && segmentIndex < segments.length - 1) {
+      // 次のセグメントを再生
+      setSegmentIndex(segmentIndex + 1);
+      // 少し待ってから自動再生
+      setTimeout(() => {
+        const v = videoRef.current;
+        if (v) {
+          v.play().catch(() => {});
+        }
+      }, 100);
+      return;
+    }
     setPlaying(false);
     setShowControls(true);
     syncAudio("pause");
+    if (segments) setSegmentIndex(0);
   };
 
   const handleMouseMove = () => {
@@ -232,8 +282,9 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Pr
     syncAudio("seek", newTime);
   };
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const bufferedProgress = duration > 0 ? (buffered / duration) * 100 : 0;
+  const totalDur = segments ? totalSegmentDuration : duration;
+  const progress = totalDur > 0 ? (currentTime / totalDur) * 100 : 0;
+  const bufferedProgress = totalDur > 0 ? (buffered / totalDur) * 100 : 0;
 
   const VolumeIcon = () => {
     if (muted || volume === 0) {
@@ -269,7 +320,7 @@ export function VideoPlayer({ videoUrl, cloudflareVideoId, title, audioUrl }: Pr
     >
       <video
         ref={videoRef}
-        src={videoUrl}
+        src={activeVideoUrl || undefined}
         className="w-full h-full cursor-pointer"
         title={title}
         onClick={togglePlay}
